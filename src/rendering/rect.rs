@@ -21,7 +21,15 @@ struct RectBindGroup {
 
     #[binding(2)]
     #[uniform]
-    fill_color: UniformBuffer<[f32; 4]>,
+    fill_color: UniformBuffer<Rgba>,
+
+    #[binding(3)]
+    #[uniform]
+    line_color: UniformBuffer<Rgba>,
+
+    #[binding(4)]
+    #[uniform]
+    line_width: UniformBuffer<[f32; 2]>,
 }
 
 #[derive(Debug, Clone)]
@@ -60,16 +68,15 @@ impl<'cx> RectRenderer<'cx> {
                 entry_point: Some("fs_main"),
                 compilation_options: the_default(),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: dbg!(canvas_format.color_format),
-                    blend: None,
-                    // blend: Some(wgpu::BlendState {
-                    //     color: wgpu::BlendComponent {
-                    //         operation: wgpu::BlendOperation::Add,
-                    //         src_factor: wgpu::BlendFactor::SrcAlpha,
-                    //         dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                    //     },
-                    //     alpha: wgpu::BlendComponent::REPLACE,
-                    // }),
+                    format: canvas_format.color_format,
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            operation: wgpu::BlendOperation::Add,
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        },
+                        alpha: wgpu::BlendComponent::REPLACE,
+                    }),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -114,7 +121,9 @@ impl<'cx> RectRenderer<'cx> {
         let bind_group = RectBindGroup {
             model_view: UniformBuffer::create_init(device, Matrix4::identity().into()),
             projection: UniformBuffer::create_init(device, Matrix4::identity().into()),
-            fill_color: UniformBuffer::create_init(device, [1., 1., 1., 1.]),
+            fill_color: UniformBuffer::create_init(device, Rgba::from_hex(0xFFFFFFFF)),
+            line_color: UniformBuffer::create_init(device, Rgba::from_hex(0xFFFFFFFF)),
+            line_width: UniformBuffer::create_init(device, [0., 0.]),
         };
         let wgpu_bind_group = bind_group.create_bind_group(&self.bind_group_layout, device);
         Rect {
@@ -151,8 +160,14 @@ impl Rect {
     }
 
     pub fn set_fill_color(&self, queue: &wgpu::Queue, fill_color: impl Into<Rgba>) {
-        self.bind_group
-            .fill_color
-            .write(fill_color.into().to_array(), queue);
+        self.bind_group.fill_color.write(fill_color.into(), queue);
+    }
+
+    pub fn set_line_color(&self, queue: &wgpu::Queue, line_color: impl Into<Rgba>) {
+        self.bind_group.line_color.write(line_color.into(), queue);
+    }
+
+    pub fn set_line_width(&self, queue: &wgpu::Queue, line_width: [f32; 2]) {
+        self.bind_group.line_width.write(line_width, queue);
     }
 }

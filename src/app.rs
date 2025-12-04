@@ -158,17 +158,27 @@ impl<'cx> UiState<'cx> {
             .draw_rect(&mut render_pass, &self.background_rect);
 
         // Draw rect.
+        let rect_width = 400.;
+        let rect_height = 200.;
+        let rect_line_width = 4.;
         let model_view_rect = Matrix4::from_translation(vec3(20., 20., 0.))
-            * Matrix4::from_nonuniform_scale(400., 200., 1.);
+            * Matrix4::from_nonuniform_scale(rect_width, rect_height, 1.);
         self.rect
             .set_fill_color(&self.queue, Srgb::from_hex(0xFBC000));
+        self.rect
+            .set_line_color(&self.queue, Srgb::from_hex(0xFFFFFF));
         self.rect.set_projection(&self.queue, projection);
         self.rect.set_model_view(&self.queue, model_view_rect);
+        self.rect.set_line_width(
+            &self.queue,
+            [rect_line_width / rect_width, rect_line_width / rect_height],
+        );
         self.rect_renderer.draw_rect(&mut render_pass, &self.rect);
 
         // Draw text.
         let model_view_text =
-            Matrix4::from_translation(vec3(20., 20., 0.)) * Matrix4::from_scale(29.);
+            Matrix4::from_translation(vec3(20. + rect_line_width, 20. + rect_line_width, 0.))
+                * Matrix4::from_scale(29.);
         self.text
             .set_fg_color(&self.queue, Srgb::from_hex(0xFFFFFF));
         self.text

@@ -1,3 +1,5 @@
+use bytemuck::{Pod, Zeroable};
+
 pub fn linear_to_srgb(linear: f32) -> f32 {
     if linear <= 0.0031308 {
         linear * 12.92
@@ -15,7 +17,8 @@ pub fn srgb_to_linear(srgb: f32) -> f32 {
 }
 
 /// Linear RGBA.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Zeroable, Pod)]
+#[repr(C)]
 pub struct Rgba {
     pub r: f32,
     pub g: f32,
@@ -78,7 +81,8 @@ impl From<Srgb> for Rgba {
 }
 
 /// sRGB+A.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Zeroable, Pod)]
+#[repr(C)]
 pub struct Srgba {
     pub r: f32,
     pub g: f32,
@@ -130,7 +134,8 @@ impl From<Rgba> for Srgba {
 }
 
 /// sRGB.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Zeroable, Pod)]
+#[repr(C)]
 pub struct Srgb {
     pub r: f32,
     pub g: f32,
