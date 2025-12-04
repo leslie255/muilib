@@ -13,7 +13,7 @@ use crate::{
     rendering::{Font, Rect, RectRenderer, Text, TextRenderer},
     resources::AppResources,
     utils::*,
-    wgpu_utils::{Canvas as _, CanvasView, ProjectionSpace, WindowCanvas},
+    wgpu_utils::{Canvas as _, CanvasView, ProjectionSpace, Rgb, WindowCanvas},
 };
 
 pub(crate) struct Application<'cx> {
@@ -152,7 +152,7 @@ impl<'cx> UiState<'cx> {
 
         // Draw background rect.
         self.background_rect
-            .set_fill_color(&self.queue, vec4(0.2, 0.2, 0.2, 1.0));
+            .set_fill_color(&self.queue, Rgb::from_hex(0x505050));
         self.background_rect.set_model_view(
             &self.queue,
             Matrix4::from_translation(vec3(-1.0, -1.0, 0.0)) * Matrix4::from_scale(2.0),
@@ -161,9 +161,9 @@ impl<'cx> UiState<'cx> {
             .draw_rect(&mut render_pass, &self.background_rect);
 
         // Draw text.
-        let model_view_text = Matrix4::from_scale(17.);
-        self.text.set_fg_color(&self.queue, vec4(0., 0., 0., 1.));
-        self.text.set_bg_color(&self.queue, vec4(0.2, 1., 1., 1.));
+        let model_view_text = Matrix4::from_scale(31.);
+        self.text.set_fg_color(&self.queue, Rgb::from_hex(0xFFFFFF));
+        self.text.set_bg_color(&self.queue, Rgb::from_hex(0x008080));
         self.text.set_projection(&self.queue, projection);
         self.text.set_model_view(&self.queue, model_view_text);
         self.text_renderer.draw_text(&mut render_pass, &self.text);
@@ -171,7 +171,8 @@ impl<'cx> UiState<'cx> {
         // Draw rect.
         let model_view_rect = Matrix4::from_translation(vec3(20., 40., 0.))
             * Matrix4::from_nonuniform_scale(200., 100., 1.);
-        self.rect.set_fill_color(&self.queue, vec4(1., 1., 0.1, 1.));
+        self.rect
+            .set_fill_color(&self.queue, Rgb::from_hex(0xFFFF00));
         self.rect.set_projection(&self.queue, projection);
         self.rect.set_model_view(&self.queue, model_view_rect);
         self.rect_renderer.draw_rect(&mut render_pass, &self.rect);

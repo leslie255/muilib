@@ -4,8 +4,7 @@ use crate::{
     resources::{AppResources, LoadResourceError},
     utils::*,
     wgpu_utils::{
-        AsBindGroup, CanvasFormat, IndexBuffer, UniformBuffer, Vertex as _, VertexBuffer,
-        vertex_formats::Vertex2dUV,
+        vertex_formats::Vertex2dUV, AsBindGroup, CanvasFormat, IndexBuffer, Srgba, UniformBuffer, Vertex as _, VertexBuffer
     },
 };
 
@@ -149,7 +148,7 @@ impl Rect {
         self.bind_group.projection.write(projection.into(), queue);
     }
 
-    pub fn set_fill_color(&self, queue: &wgpu::Queue, fill_color: Vector4<f32>) {
-        self.bind_group.fill_color.write(fill_color.into(), queue);
+    pub fn set_fill_color(&self, queue: &wgpu::Queue, fill_color: impl Into<Srgba>) {
+        self.bind_group.fill_color.write(fill_color.into().to_array(), queue);
     }
 }

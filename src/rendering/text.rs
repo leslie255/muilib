@@ -10,13 +10,9 @@ use cgmath::*;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    AppResources,
-    resources::LoadResourceError,
-    utils::*,
-    wgpu_utils::{
-        AsBindGroup, CanvasFormat, IndexBuffer, UniformBuffer, Vertex as _, VertexBuffer,
-        vertex_formats::Vertex2dUV,
-    },
+    resources::LoadResourceError, utils::*, wgpu_utils::{
+        vertex_formats::Vertex2dUV, AsBindGroup, CanvasFormat, IndexBuffer, Srgba, UniformBuffer, Vertex as _, VertexBuffer
+    }, AppResources
 };
 
 fn normalize_coord_in_texture(texture_size: Vector2<u32>, coord: Vector2<u32>) -> Vector2<f32> {
@@ -186,12 +182,12 @@ pub struct Text {
 }
 
 impl Text {
-    pub fn set_fg_color(&self, queue: &wgpu::Queue, color: Vector4<f32>) {
-        self.bind_group.fg_color.write(color.into(), queue);
+    pub fn set_fg_color(&self, queue: &wgpu::Queue, color: impl Into<Srgba>) {
+        self.bind_group.fg_color.write(color.into().to_array(), queue);
     }
 
-    pub fn set_bg_color(&self, queue: &wgpu::Queue, color: Vector4<f32>) {
-        self.bind_group.bg_color.write(color.into(), queue);
+    pub fn set_bg_color(&self, queue: &wgpu::Queue, color: impl Into<Srgba>) {
+        self.bind_group.bg_color.write(color.into().to_array(), queue);
     }
 
     pub fn set_model_view(&self, queue: &wgpu::Queue, model_view: Matrix4<f32>) {
