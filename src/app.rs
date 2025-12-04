@@ -13,6 +13,7 @@ use crate::{
     rendering::{Font, Rect, RectRenderer, Text, TextRenderer},
     resources::AppResources,
     utils::*,
+    wgpu_utils::{Canvas as _, CanvasView, ProjectionSpace, WindowCanvas},
 };
 
 pub(crate) struct Application<'cx> {
@@ -77,11 +78,7 @@ struct UiState<'cx> {
     device: wgpu::Device,
     queue: wgpu::Queue,
     window: Arc<Window>,
-    window_surface: wgpu::Surface<'static>,
-    window_surface_format: wgpu::TextureFormat,
-    size_physical_u: Vector2<u32>,
-    size_physical: Vector2<f32>,
-    size_logical: Vector2<f32>,
+    window_canvas: WindowCanvas<'static>,
     text_renderer: TextRenderer<'cx>,
     text: Text,
     rect_renderer: RectRenderer<'cx>,
@@ -91,39 +88,33 @@ struct UiState<'cx> {
 impl<'cx> UiState<'cx> {
     pub fn create(resources: &'cx AppResources, window: Arc<Window>) -> Self {
         let (instance, adapter, device, queue) = init_wgpu();
-        let window_surface = instance.create_surface(window.retain()).unwrap();
-        let surface_capabilities = window_surface.get_capabilities(&adapter);
-        let window_surface_format = surface_capabilities
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(surface_capabilities.formats[0]);
+        let window_canvas =
+            WindowCanvas::create_for_window(&instance, &adapter, &device, window.retain());
         let font = Font::load_from_path(resources, "fonts/big_blue_terminal.json").unwrap();
         let text_renderer = TextRenderer::create(
             &device,
             &queue,
             font,
             resources,
-            window_surface_format,
+            window_canvas.format().color_format,
             None,
         )
         .unwrap();
         let text = text_renderer.create_text(&device, "HELLO, WORLD");
-        let rect_renderer =
-            RectRenderer::create(&device, resources, window_surface_format, None).unwrap();
+        let rect_renderer = RectRenderer::create(
+            &device,
+            resources,
+            window_canvas.format().color_format,
+            None,
+        )
+        .unwrap();
         let rect = rect_renderer.create_rect(&device);
         let mut self_ = Self {
             resources,
             device,
             queue,
             window,
-            window_surface,
-            window_surface_format,
-            // `window_resized` will update it.
-            size_physical_u: Vector2::zero(),
-            size_physical: Vector2::zero(),
-            size_logical: Vector2::zero(),
+            window_canvas,
             text_renderer,
             text,
             rect_renderer,
@@ -133,15 +124,15 @@ impl<'cx> UiState<'cx> {
         self_
     }
 
-    fn frame(&mut self) {
-        let surface_texture = self.window_surface.get_current_texture().unwrap();
-        let surface_texture_view = surface_texture.texture.create_view(&the_default());
-
+    fn frame(&mut self, canvas: CanvasView) {
+        assert!(
+            canvas.depth_stencil_texture_view.is_none(),
+            "TODO: drawing with depth stencil buffer"
+        );
         let mut encoder = self.device.create_command_encoder(&the_default());
-
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &surface_texture_view,
+                view: &canvas.color_texture_view,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
@@ -152,7 +143,7 @@ impl<'cx> UiState<'cx> {
             ..the_default()
         });
 
-        let projection = cgmath::ortho(0., self.size_logical.x, self.size_logical.y, 0., -1.0, 1.0);
+        let projection = canvas.projection(ProjectionSpace::TopLeftDown, -1.0, 1.0);
 
         // Draw text.
         let model_view_text = Matrix4::from_scale(17.);
@@ -163,7 +154,7 @@ impl<'cx> UiState<'cx> {
         self.text_renderer.draw_text(&mut render_pass, &self.text);
 
         // Draw rect.
-        let model_view_rect = Matrix4::from_translation(vec3(100., 200., 0.))
+        let model_view_rect = Matrix4::from_translation(vec3(20., 40., 0.))
             * Matrix4::from_nonuniform_scale(200., 100., 1.);
         self.rect.set_fill_color(&self.queue, vec4(1., 1., 0.1, 1.));
         self.rect.set_projection(&self.queue, projection);
@@ -174,7 +165,6 @@ impl<'cx> UiState<'cx> {
 
         self.queue.submit([encoder.finish()]);
         self.window.pre_present_notify();
-        surface_texture.present();
     }
 
     fn window_event(
@@ -185,29 +175,22 @@ impl<'cx> UiState<'cx> {
     ) {
         match event {
             WindowEvent::Resized(_) => self.window_resized(),
-            WindowEvent::RedrawRequested => self.frame(),
+            WindowEvent::RedrawRequested => {
+                let canvas_view = self.window_canvas.begin_drawing().unwrap();
+                self.frame(canvas_view);
+                self.window_canvas.finish_drawing().unwrap();
+            }
             WindowEvent::CloseRequested => event_loop.exit(),
             _ => (),
         }
     }
 
     fn window_resized(&mut self) {
-        let window_size = self.window.inner_size();
-        self.size_physical_u = vec2(window_size.width, window_size.height);
-        self.size_physical = self.size_physical_u.map(|u| u as f32);
-        self.size_logical = self
-            .size_physical
-            .map(|f| f / self.window.scale_factor() as f32);
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: self.window_surface_format,
-            view_formats: vec![self.window_surface_format.add_srgb_suffix()],
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            width: window_size.width,
-            height: window_size.height,
-            desired_maximum_frame_latency: 3,
-            present_mode: wgpu::PresentMode::AutoVsync,
-        };
-        self.window_surface.configure(&self.device, &surface_config);
+        self.window_canvas.reconfigure_for_size(
+            &self.device,
+            self.window.inner_size(),
+            self.window.scale_factor(),
+            None,
+        );
     }
 }
