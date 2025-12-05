@@ -15,6 +15,15 @@ pub struct BoundingBox {
     pub size: RectSize,
 }
 
+impl Default for BoundingBox {
+    fn default() -> Self {
+        Self {
+            origin: point2(0., 0.),
+            size: Default::default(),
+        }
+    }
+}
+
 impl BoundingBox {
     pub const fn new(x_min: f32, y_min: f32, width: f32, height: f32) -> Self {
         Self {
@@ -41,6 +50,13 @@ impl BoundingBox {
 
     pub const fn end(self) -> Point2<f32> {
         point2(self.x_max(), self.y_max())
+    }
+
+    pub const fn contains(self, point: Point2<f32>) -> bool {
+        self.x_min() <= point.x
+            && point.x <= self.x_max()
+            && self.y_min() <= point.y
+            && point.y <= self.y_max()
     }
 }
 

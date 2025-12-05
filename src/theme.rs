@@ -61,25 +61,25 @@ impl Theme {
                 idle_style: ButtonStateStyle {
                     line_width: LineWidth::Uniform(2.),
                     font_size: 12.,
-                    text: Srgb::from_hex(0xFFFFFF),
-                    fill: Srgb::from_hex(0x2A2A2A),
-                    line: Srgb::from_hex(0x494949),
+                    text_color: Srgb::from_hex(0xFFFFFF),
+                    fill_color: Srgb::from_hex(0x2A2A2A),
+                    line_color: Srgb::from_hex(0x494949),
                 },
                 // Hovered.
                 hovered_style: ButtonStateStyle {
                     line_width: LineWidth::Uniform(2.),
                     font_size: 12.,
-                    text: Srgb::from_hex(0xFFFFFF),
-                    fill: Srgb::from_hex(0x424242),
-                    line: Srgb::from_hex(0xA2A2A2),
+                    text_color: Srgb::from_hex(0xFFFFFF),
+                    fill_color: Srgb::from_hex(0x424242),
+                    line_color: Srgb::from_hex(0xA2A2A2),
                 },
-                // Clicked.
-                clicked_style: ButtonStateStyle {
+                // Pressed.
+                pressed_style: ButtonStateStyle {
                     line_width: LineWidth::Uniform(2.),
                     font_size: 12.,
-                    text: Srgb::from_hex(0x000000),
-                    fill: Srgb::from_hex(0xFFFFFF),
-                    line: Srgb::from_hex(0xFFFFFF),
+                    text_color: Srgb::from_hex(0x000000),
+                    fill_color: Srgb::from_hex(0xFFFFFF),
+                    line_color: Srgb::from_hex(0xFFFFFF),
                 },
             },
             // Primary.
@@ -88,25 +88,25 @@ impl Theme {
                 idle_style: ButtonStateStyle {
                     line_width: LineWidth::Uniform(2.),
                     font_size: 12.,
-                    text: Srgb::from_hex(0xFFFFFF),
-                    fill: Srgb::from_hex(0x2C3F71),
-                    line: Srgb::from_hex(0x3D5B9B),
+                    text_color: Srgb::from_hex(0xFFFFFF),
+                    fill_color: Srgb::from_hex(0x2C3F71),
+                    line_color: Srgb::from_hex(0x3D5B9B),
                 },
                 // Hovered.
                 hovered_style: ButtonStateStyle {
                     line_width: LineWidth::Uniform(2.),
                     font_size: 12.,
-                    text: Srgb::from_hex(0xFFFFFF),
-                    fill: Srgb::from_hex(0x3D5B9B),
-                    line: Srgb::from_hex(0xE4F0FF),
+                    text_color: Srgb::from_hex(0xFFFFFF),
+                    fill_color: Srgb::from_hex(0x3D5B9B),
+                    line_color: Srgb::from_hex(0xE4F0FF),
                 },
-                // Clicked.
-                clicked_style: ButtonStateStyle {
+                // Pressed.
+                pressed_style: ButtonStateStyle {
                     line_width: LineWidth::Uniform(2.),
                     font_size: 12.,
-                    text: Srgb::from_hex(0x000000),
-                    fill: Srgb::from_hex(0xFFFFFF),
-                    line: Srgb::from_hex(0xFFFFFF),
+                    text_color: Srgb::from_hex(0x000000),
+                    fill_color: Srgb::from_hex(0xFFFFFF),
+                    line_color: Srgb::from_hex(0xFFFFFF),
                 },
             },
             // Toxic.
@@ -115,25 +115,25 @@ impl Theme {
                 idle_style: ButtonStateStyle {
                     line_width: LineWidth::Uniform(2.),
                     font_size: 12.,
-                    text: Srgb::from_hex(0xFFFFFF),
-                    fill: Srgb::from_hex(0x952727),
-                    line: Srgb::from_hex(0xC83F3F),
+                    text_color: Srgb::from_hex(0xFFFFFF),
+                    fill_color: Srgb::from_hex(0x952727),
+                    line_color: Srgb::from_hex(0xC83F3F),
                 },
                 // Hovered.
                 hovered_style: ButtonStateStyle {
                     line_width: LineWidth::Uniform(2.),
                     font_size: 12.,
-                    text: Srgb::from_hex(0xFFFFFF),
-                    fill: Srgb::from_hex(0xFF776C),
-                    line: Srgb::from_hex(0xFFD0CE),
+                    text_color: Srgb::from_hex(0xFFFFFF),
+                    fill_color: Srgb::from_hex(0xFF776C),
+                    line_color: Srgb::from_hex(0xFFD0CE),
                 },
-                // Clicked.
-                clicked_style: ButtonStateStyle {
+                // Pressed.
+                pressed_style: ButtonStateStyle {
                     line_width: LineWidth::Uniform(2.),
                     font_size: 12.,
-                    text: Srgb::from_hex(0x952727),
-                    fill: Srgb::from_hex(0xFFFFFF),
-                    line: Srgb::from_hex(0x952727),
+                    text_color: Srgb::from_hex(0x952727),
+                    fill_color: Srgb::from_hex(0xFFFFFF),
+                    line_color: Srgb::from_hex(0x952727),
                 },
             },
         ],

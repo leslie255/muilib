@@ -123,10 +123,11 @@ impl<'cx, UiState: 'cx> ButtonRenderer<'cx, UiState> {
         device: &wgpu::Device,
         bounding_box: BoundingBox,
         title: &str,
-        callback: Option<ButtonCallback<'cx, UiState>>,
+        callback: Option<ButtonCallback<UiState>>,
     ) -> Button<'cx, UiState> {
         let rect = self.rect_renderer.create_rect(device);
         let text = self.text_renderer.create_text(device, title);
+        assert!(callback.is_none(), "TODO: button events");
         let dispatch = Arc::new(ButtonDispatch {
             state: Mutex::new(ButtonState::Idle),
             needs_updating: true.into(),
@@ -186,7 +187,7 @@ impl<'cx, UiState: 'cx> ButtonRenderer<'cx, UiState> {
     }
 }
 
-pub type ButtonCallback<'cx, UiState> =
+pub type ButtonCallback<'cx, UiState: 'cx> =
     Box<dyn for<'a> Fn(&'a mut UiState, MouseEvent) + Send + Sync + 'cx>;
 
 pub struct Button<'cx, UiState: 'cx> {
@@ -233,7 +234,7 @@ impl<'cx, UiState> ButtonDispatch<'cx, UiState> {
     }
 }
 
-impl<'cx, UiState: 'cx> MouseEventListener<'cx, UiState> for Arc<ButtonDispatch<'cx, UiState>> {
+impl<'cx, UiState: 'cx> MouseEventListener<'cx, UiState> for Arc<ButtonDispatch<UiState>> {
     fn mouse_event(&self, event: MouseEvent, ui_state: &mut UiState) {
         let old_state = self.get_state();
         let new_state = match event.kind {

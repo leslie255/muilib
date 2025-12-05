@@ -1,5 +1,6 @@
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::Arc;
 
+use cgmath::*;
 use pollster::FutureExt as _;
 use winit::{
     application::ApplicationHandler,
@@ -10,6 +11,7 @@ use winit::{
 
 use crate::{
     button::{Button, ButtonRenderer},
+    mouse_event::MouseEventRouter,
     resources::AppResources,
     shapes::{BoundingBox, Font, Rect, RectRenderer, TextRenderer},
     theme::{ButtonKind, Theme},
@@ -19,13 +21,17 @@ use crate::{
 
 pub(crate) struct Application<'cx> {
     resources: &'cx AppResources,
-    ui: Option<Arc<Mutex<UiState<'cx>>>>,
+    mouse_event_router: Arc<MouseEventRouter<'cx, UiState<'cx>>>,
+    window: Option<Arc<Window>>,
+    ui: Option<UiState<'cx>>,
 }
 
 impl<'cx> Application<'cx> {
     pub fn new(resources: &'cx AppResources) -> Self {
         Self {
             resources,
+            mouse_event_router: Arc::new(MouseEventRouter::new(BoundingBox::default())),
+            window: None,
             ui: None,
         }
     }
@@ -40,7 +46,12 @@ impl<'cx> ApplicationHandler for Application<'cx> {
                     .create_window(WindowAttributes::default().with_title("UI Test"))
                     .unwrap();
                 let window = Arc::new(window);
-                *ui = Some(UiState::create(self.resources, window));
+                self.window = Some(Arc::clone(&window));
+                *ui = Some(UiState::create(
+                    self.resources,
+                    window,
+                    self.mouse_event_router.clone(),
+                ));
             }
         }
     }
@@ -51,11 +62,24 @@ impl<'cx> ApplicationHandler for Application<'cx> {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        if let Some(ui) = self.ui.as_mut() {
-            ui.lock()
-                .unwrap()
-                .window_event(event_loop, window_id, event)
+        let Some(window) = self.window.as_ref() else {
+            return;
         };
+        if window_id != window.id() {
+            return;
+        }
+        if let WindowEvent::Resized(size_physical) = event {
+            let size_logical = size_physical.to_logical::<f32>(window.scale_factor());
+            let bounds = BoundingBox::new(0., 0., size_logical.width, size_logical.height);
+            self.mouse_event_router.set_bounds(bounds);
+        }
+        if let Some(ui) = self.ui.as_mut() {
+            let should_redraw = self.mouse_event_router.window_event(&event, ui);
+            if should_redraw {
+                window.request_redraw();
+            }
+            ui.window_event(event_loop, window_id, event);
+        }
     }
 }
 
@@ -83,24 +107,21 @@ struct UiState<'cx> {
     rect_renderer: RectRenderer<'cx>,
     rect_background: Rect,
     button_renderer_mundane: ButtonRenderer<'cx, UiState<'cx>>,
-    button_mundane: Button<UiState<'cx>>,
     button_renderer_primary: ButtonRenderer<'cx, UiState<'cx>>,
-    button_primary: Button<UiState<'cx>>,
     button_renderer_toxic: ButtonRenderer<'cx, UiState<'cx>>,
-    button_toxic: Button<UiState<'cx>>,
+    button_mundane: Button<'cx, UiState<'cx>>,
+    button_primary: Button<'cx, UiState<'cx>>,
+    button_toxic: Button<'cx, UiState<'cx>>,
+    counter: i64,
+    counter_text: crate::shapes::Text,
 }
 
 impl<'cx> UiState<'cx> {
-    pub fn create(resources: &'cx AppResources, window: Arc<Window>) -> Arc<Mutex<Self>> {
-        Arc::new_cyclic(|weak_self| Self::create_(weak_self, resources, window))
-    }
-
-    fn create_(
-        weak_self: &Weak<Mutex<Self>>,
+    pub fn create(
         resources: &'cx AppResources,
         window: Arc<Window>,
-    ) -> Mutex<Self> {
-        _ = weak_self;
+        event_router: Arc<MouseEventRouter<'cx, Self>>,
+    ) -> Self {
         let (instance, adapter, device, queue) = init_wgpu();
         let window_canvas = WindowCanvas::create_for_window(
             &instance,
@@ -121,6 +142,7 @@ impl<'cx> UiState<'cx> {
         let canvas_format = window_canvas.format();
 
         let rect_renderer = RectRenderer::create(&device, resources, canvas_format).unwrap();
+
         let rect_background = rect_renderer.create_rect(&device);
         rect_background.set_fill_color(&queue, Theme::DEFAULT.primary_background());
         rect_background.set_parameters(&queue, BoundingBox::new(-1., -1., 2., 2.), 0.);
@@ -129,27 +151,82 @@ impl<'cx> UiState<'cx> {
         let text_renderer =
             TextRenderer::create(&device, &queue, font, resources, canvas_format).unwrap();
 
-        let create_button = |button_renderer: &ButtonRenderer<_>, i: usize, title: &str| {
-            let i = i as f32;
-            let width = 64.;
-            let height = 24.;
-            let inter_padding = 10.;
-            let bounds = BoundingBox::new(20. + i * (width + inter_padding), 20., width, height);
-            button_renderer.create_button(&device, &queue, bounds, title, None)
-        };
+        let counter_text = text_renderer.create_text(&device, "0");
+        counter_text.set_parameters(&queue, point2(20., 20.), 24.);
+
         let button_renderer_mundane = ButtonRenderer::new(
-            weak_self.clone(),
             text_renderer.clone(),
             rect_renderer.clone(),
-            Theme::DEFAULT.button_style_set(ButtonKind::Mundane),
+            event_router,
+            Theme::DEFAULT
+                .button_style_set(ButtonKind::Mundane)
+                .with_line_width(4.)
+                .with_font_size(24.),
         );
-        let button_renderer_primary =
-            button_renderer_mundane.fork(Theme::DEFAULT.button_style_set(ButtonKind::Primary));
-        let button_renderer_toxic =
-            button_renderer_mundane.fork(Theme::DEFAULT.button_style_set(ButtonKind::Toxic));
-        let button_mundane = create_button(&button_renderer_mundane, 0, "Cancel");
-        let button_primary = create_button(&button_renderer_primary, 1, "OK");
-        let button_toxic = create_button(&button_renderer_toxic, 2, "Delete");
+        let button_renderer_primary = button_renderer_mundane.fork(
+            Theme::DEFAULT
+                .button_style_set(ButtonKind::Primary)
+                .with_line_width(4.)
+                .with_font_size(24.),
+        );
+        let button_renderer_toxic = button_renderer_mundane.fork(
+            Theme::DEFAULT
+                .button_style_set(ButtonKind::Toxic)
+                .with_line_width(4.)
+                .with_font_size(24.),
+        );
+
+        let width = 128.;
+        let height = 48.;
+        let inter_padding = 10.;
+        let y_offset = 54.0f32;
+        let bounding_box = |i: usize| -> BoundingBox {
+            BoundingBox::new(
+                20. + (i as f32) * (width + inter_padding),
+                y_offset,
+                width,
+                height,
+            )
+        };
+        let button_mundane = {
+            button_renderer_mundane.create_button(
+                &device,
+                bounding_box(0),
+                "-1",
+                Some(Box::new(|self_, event| {
+                    if event.is_button_trigger() {
+                        self_.counter -= 1;
+                        self_.update_counter_text();
+                    }
+                })),
+            )
+        };
+        let button_primary = {
+            button_renderer_primary.create_button(
+                &device,
+                bounding_box(1),
+                "+1",
+                Some(Box::new(|self_, event| {
+                    if event.is_button_trigger() {
+                        self_.counter += 1;
+                        self_.update_counter_text();
+                    }
+                })),
+            )
+        };
+        let button_toxic = {
+            button_renderer_primary.create_button(
+                &device,
+                bounding_box(2),
+                "SET 0",
+                Some(Box::new(|self_, event| {
+                    if event.is_button_trigger() {
+                        self_.counter = 0;
+                        self_.update_counter_text();
+                    }
+                })),
+            )
+        };
 
         let mut self_ = Self {
             resources,
@@ -161,14 +238,24 @@ impl<'cx> UiState<'cx> {
             rect_renderer,
             rect_background,
             button_renderer_mundane,
-            button_mundane,
             button_renderer_primary,
-            button_primary,
             button_renderer_toxic,
+            button_mundane,
+            button_primary,
             button_toxic,
+            counter: 0,
+            counter_text,
         };
         self_.window_resized();
-        Mutex::new(self_)
+        self_
+    }
+
+    pub fn update_counter_text(&mut self) {
+        self.text_renderer.update_text(
+            &self.device,
+            &mut self.counter_text,
+            &format!("{}", self.counter),
+        );
     }
 
     fn frame(&mut self, canvas: CanvasView) {
@@ -195,6 +282,10 @@ impl<'cx> UiState<'cx> {
         // Draw background rect.
         self.rect_renderer
             .draw_rect(&mut render_pass, &self.rect_background);
+
+        // Draw text.
+        self.counter_text.set_projection(&self.queue, projection);
+        self.text_renderer.draw_text(&mut render_pass, &self.counter_text);
 
         // Draw button.
         self.button_mundane.set_projection(&self.queue, projection);
