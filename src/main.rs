@@ -4,11 +4,11 @@ extern crate derive;
 
 pub mod app;
 pub mod wgpu_utils;
-
 pub mod resources;
-
 pub mod shapes;
 
+pub(crate) mod theme;
+pub(crate) mod button;
 pub(crate) mod utils;
 
 use std::path::PathBuf;

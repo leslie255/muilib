@@ -148,7 +148,8 @@ impl Srgb {
     }
 
     pub const fn from_hex(u: u32) -> Self {
-        let [_, r, g, b] = u.to_be_bytes();
+        let [zero, r, g, b] = u.to_be_bytes();
+        assert!(zero == 0, "`Srgb::from_hex` called with overflowing value");
         Self {
             r: r as f32 / 255.,
             g: g as f32 / 255.,

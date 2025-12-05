@@ -11,8 +11,8 @@ use wgpu::util::DeviceExt;
 
 use crate::{
     AppResources,
-    shapes::BoundingBox,
     resources::LoadResourceError,
+    shapes::BoundingBox,
     utils::*,
     wgpu_utils::{
         AsBindGroup, CanvasFormat, IndexBuffer, Rgba, UniformBuffer, Vertex, VertexBuffer,
@@ -104,7 +104,8 @@ impl<'cx> Font<'cx> {
         )
     }
 
-    pub fn glyph_aspect_ratio(&self) -> f32 {
+    /// Glyph height if glyph_width is 1.
+    pub fn glyph_relative_height(&self) -> f32 {
         (self.glyph_size.x as f32) / (self.glyph_size.y as f32)
     }
 
@@ -202,6 +203,15 @@ impl Text {
 
     pub fn set_projection(&self, queue: &wgpu::Queue, projection: Matrix4<f32>) {
         self.bind_group.projection.write(projection.into(), queue);
+    }
+
+    /// Convenience function over `set_model_view`.
+    /// Sets `model_view` according to the bounding box and text size provided.
+    pub fn set_parameters(&self, queue: &wgpu::Queue, origin: Point2<f32>, font_size: f32) {
+        self.set_model_view(
+            queue,
+            Matrix4::from_translation(origin.to_vec().extend(0.)) * Matrix4::from_scale(font_size),
+        );
     }
 }
 
@@ -315,8 +325,11 @@ impl<'cx> TextRenderer<'cx> {
         let glyph_height = glyph_size_pixels.y as f32 / atlas_height as f32;
         let vertices_data = &[
             Vertex2dUV::new([0., 0.], [0., 0.]),
-            Vertex2dUV::new([font.glyph_aspect_ratio(), 0.], [glyph_width, 0.]),
-            Vertex2dUV::new([font.glyph_aspect_ratio(), 1.], [glyph_width, glyph_height]),
+            Vertex2dUV::new([font.glyph_relative_height(), 0.], [glyph_width, 0.]),
+            Vertex2dUV::new(
+                [font.glyph_relative_height(), 1.],
+                [glyph_width, glyph_height],
+            ),
             Vertex2dUV::new([0., 1.], [0., glyph_height]),
         ];
         let vertex_buffer = VertexBuffer::create_init(device, vertices_data);
@@ -396,12 +409,19 @@ impl<'cx> TextRenderer<'cx> {
             }
             let quad = self.font.bounding_box_for_char(char);
             instances.push(TextInstance {
-                position_offset: [column as f32 * self.font.glyph_aspect_ratio(), row as f32],
+                position_offset: [
+                    column as f32 * self.font.glyph_relative_height(),
+                    row as f32,
+                ],
                 uv_offset: quad.origin.into(),
             });
             column += 1;
         }
         let instance_buffer = VertexBuffer::create_init(device, &instances);
         (instances.len() as u32, instance_buffer)
+    }
+
+    pub fn font(&self) -> Font<'cx> {
+        self.font
     }
 }

@@ -236,33 +236,19 @@ impl Rect {
         self.bind_group.projection.write(projection.into(), queue);
     }
 
-    /// Convenience function over `set_model_view` and `set_line_width`.
-    /// Sets `model_view` and `line_width` according to the bounding box and pre-normalized line
-    /// width, and then allows applying a transformation matrix on top.
-    pub fn set_parameters_with_transform(
-        &self,
-        queue: &wgpu::Queue,
-        bounding_box: BoundingBox,
-        line_width: impl Into<LineWidth>,
-        model: Matrix4<f32>,
-    ) {
-        let model_view = model
-            * Matrix4::from_translation(bounding_box.origin.to_vec().extend(0.))
-            * Matrix4::from_nonuniform_scale(bounding_box.size.width, bounding_box.size.height, 1.);
-        self.set_model_view(queue, model_view);
-        self.set_line_width(queue, line_width.into().normalized_in(bounding_box.size));
-    }
-
-    /// Convenience function over `set_model_view` and `set_line_width`.
-    /// Sets `model_view` and `line_width` according to the bounding box and pre-normalized line
-    /// width.
+    /// Convenience function over `set_model_view` and `set_normalized_line_width`.
+    /// Sets `model_view` and normalized `line_width` according to the bounding box and line width
+    /// provided.
     pub fn set_parameters(
         &self,
         queue: &wgpu::Queue,
         bounding_box: BoundingBox,
         line_width: impl Into<LineWidth>,
     ) {
-        self.set_parameters_with_transform(queue, bounding_box, line_width, Matrix4::identity());
+        let model_view = Matrix4::from_translation(bounding_box.origin.to_vec().extend(0.))
+            * Matrix4::from_nonuniform_scale(bounding_box.size.width, bounding_box.size.height, 1.);
+        self.set_model_view(queue, model_view);
+        self.set_normalized_line_width(queue, line_width.into().normalized_in(bounding_box.size));
     }
 
     pub fn set_fill_color(&self, queue: &wgpu::Queue, fill_color: impl Into<Rgba>) {
@@ -273,7 +259,7 @@ impl Rect {
         self.bind_group.line_color.write(line_color.into(), queue);
     }
 
-    pub fn set_line_width(&self, queue: &wgpu::Queue, line_width: impl Into<LineWidth>) {
+    pub fn set_normalized_line_width(&self, queue: &wgpu::Queue, line_width: impl Into<LineWidth>) {
         self.bind_group
             .line_width
             .write(line_width.into().to_array(), queue);

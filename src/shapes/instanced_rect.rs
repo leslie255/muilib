@@ -3,8 +3,8 @@ use cgmath::*;
 
 use crate::{
     AppResources,
-    shapes::{BoundingBox, LineWidth},
     resources::LoadResourceError,
+    shapes::{BoundingBox, LineWidth},
     utils::*,
     wgpu_utils::{AsBindGroup, CanvasFormat, Rgba, UniformBuffer, Vertex, VertexBuffer},
 };
@@ -169,22 +169,16 @@ impl RectInstance {
         }
     }
 
-    pub fn from_parameters_with_transform(
-        bounding_box: BoundingBox,
-        line_width: impl Into<LineWidth>,
-        transform: Matrix3<f32>,
-    ) -> Self {
-        let model_view = transform
-            * Matrix3::from_translation(bounding_box.origin.to_vec())
+    /// Convenience function over `with_model_view` and `with_normalized_line_width`.
+    /// Sets `model_view` and normalized `line_width` according to the bounding box and line width
+    /// provided.
+    pub fn from_parameters(bounding_box: BoundingBox, line_width: impl Into<LineWidth>) -> Self {
+        let model_view = Matrix3::from_translation(bounding_box.origin.to_vec())
             * Matrix3::from_nonuniform_scale(bounding_box.size.width, bounding_box.size.height);
         let line_width_normalized = line_width.into().normalized_in(bounding_box.size);
         Self::new()
             .with_model_view(model_view)
             .with_normalized_line_width(line_width_normalized)
-    }
-
-    pub fn from_parameters(bounding_box: BoundingBox, line_width: impl Into<LineWidth>) -> Self {
-        Self::from_parameters_with_transform(bounding_box, line_width, Matrix3::identity())
     }
 }
 
