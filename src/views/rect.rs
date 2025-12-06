@@ -10,12 +10,12 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct BoundingBox {
+pub struct Rect {
     pub origin: Point2<f32>,
     pub size: RectSize,
 }
 
-impl Default for BoundingBox {
+impl Default for Rect {
     fn default() -> Self {
         Self {
             origin: point2(0., 0.),
@@ -24,7 +24,7 @@ impl Default for BoundingBox {
     }
 }
 
-impl BoundingBox {
+impl Rect {
     pub const fn new(x_min: f32, y_min: f32, width: f32, height: f32) -> Self {
         Self {
             origin: point2(x_min, y_min),
@@ -215,7 +215,7 @@ impl<'cx> RectRenderer<'cx> {
         })
     }
 
-    pub fn create_rect(&self, device: &wgpu::Device) -> Rect {
+    pub fn create_rect(&self, device: &wgpu::Device) -> RectView {
         let bind_group = RectBindGroup {
             model_view: UniformBuffer::create_init(device, Matrix4::identity().into()),
             projection: UniformBuffer::create_init(device, Matrix4::identity().into()),
@@ -224,13 +224,13 @@ impl<'cx> RectRenderer<'cx> {
             line_width: UniformBuffer::create_init(device, [0., 0., 0., 0.]),
         };
         let wgpu_bind_group = bind_group.create_bind_group(&self.bind_group_layout, device);
-        Rect {
+        RectView {
             bind_group,
             wgpu_bind_group,
         }
     }
 
-    pub fn draw_rect(&self, render_pass: &mut wgpu::RenderPass, rect: &Rect) {
+    pub fn draw_rect(&self, render_pass: &mut wgpu::RenderPass, rect: &RectView) {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &rect.wgpu_bind_group, &[]);
         render_pass.draw(0..6, 0..1);
@@ -238,12 +238,12 @@ impl<'cx> RectRenderer<'cx> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Rect {
+pub struct RectView {
     bind_group: RectBindGroup,
     wgpu_bind_group: wgpu::BindGroup,
 }
 
-impl Rect {
+impl RectView {
     pub fn set_model_view(&self, queue: &wgpu::Queue, model_view: Matrix4<f32>) {
         self.bind_group.model_view.write(model_view.into(), queue);
     }
@@ -258,7 +258,7 @@ impl Rect {
     pub fn set_parameters(
         &self,
         queue: &wgpu::Queue,
-        bounding_box: BoundingBox,
+        bounding_box: Rect,
         line_width: impl Into<LineWidth>,
     ) {
         let model_view = Matrix4::from_translation(bounding_box.origin.to_vec().extend(0.))

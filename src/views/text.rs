@@ -12,7 +12,7 @@ use wgpu::util::DeviceExt;
 use crate::{
     AppResources,
     resources::LoadResourceError,
-    shapes::BoundingBox,
+    views::Rect,
     utils::*,
     wgpu_utils::{
         AsBindGroup, CanvasFormat, IndexBuffer, Rgba, UniformBuffer, Vertex, VertexBuffer,
@@ -92,11 +92,11 @@ impl<'cx> Font<'cx> {
         glyph_coord.mul_element_wise(self.glyph_size)
     }
 
-    pub fn bounding_box_for_char(&self, char: char) -> BoundingBox {
+    pub fn bounding_box_for_char(&self, char: char) -> Rect {
         let top_left = self.position_for_glyph(char);
         let atlas_size = vec2(self.atlas_image.width(), self.atlas_image.height());
         let top_left = normalize_coord_in_texture(atlas_size, top_left);
-        BoundingBox::new(
+        Rect::new(
             top_left.x,
             top_left.y,
             self.glyph_size_normalised.x,
@@ -177,14 +177,14 @@ impl TextInstance {
 }
 
 #[derive(Debug, Clone)]
-pub struct Text {
+pub struct TextView {
     bind_group: TextBindGroup,
     wgpu_bind_group: wgpu::BindGroup,
     n_instances: u32,
     instance_buffer: VertexBuffer<TextInstance>,
 }
 
-impl Text {
+impl TextView {
     pub fn set_fg_color(&self, queue: &wgpu::Queue, color: impl Into<Rgba>) {
         self.bind_group
             .fg_color
@@ -350,7 +350,7 @@ impl<'cx> TextRenderer<'cx> {
         })
     }
 
-    pub fn draw_text(&self, render_pass: &mut wgpu::RenderPass, text: &Text) {
+    pub fn draw_text(&self, render_pass: &mut wgpu::RenderPass, text: &TextView) {
         if text.n_instances == 0 {
             return;
         }
@@ -365,7 +365,7 @@ impl<'cx> TextRenderer<'cx> {
         render_pass.draw_indexed(0..self.index_buffer.length(), 0, 0..text.n_instances);
     }
 
-    pub fn create_text(&self, device: &wgpu::Device, str: &str) -> Text {
+    pub fn create_text(&self, device: &wgpu::Device, str: &str) -> TextView {
         let bind_group = TextBindGroup {
             model_view: UniformBuffer::create_init(device, Matrix4::identity().into()),
             projection: UniformBuffer::create_init(device, Matrix4::identity().into()),
@@ -376,7 +376,7 @@ impl<'cx> TextRenderer<'cx> {
         };
         let wgpu_bind_group = bind_group.create_bind_group(&self.bind_group_layout, device);
         let (n_instances, instance_buffer) = self.create_instance_buffer(device, str);
-        Text {
+        TextView {
             bind_group,
             wgpu_bind_group,
             n_instances,
@@ -384,7 +384,7 @@ impl<'cx> TextRenderer<'cx> {
         }
     }
 
-    pub fn update_text(&self, device: &wgpu::Device, text: &mut Text, str: &str) {
+    pub fn update_text(&self, device: &wgpu::Device, text: &mut TextView, str: &str) {
         (text.n_instances, text.instance_buffer) = self.create_instance_buffer(device, str);
     }
 

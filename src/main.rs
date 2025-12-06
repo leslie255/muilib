@@ -3,10 +3,9 @@
 extern crate derive;
 
 pub mod app;
-pub mod button;
 pub mod mouse_event;
 pub mod resources;
-pub mod shapes;
+pub mod views;
 pub mod wgpu_utils;
 
 pub(crate) mod theme;

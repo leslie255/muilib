@@ -10,7 +10,7 @@ use cgmath::*;
 
 use winit::event::{ElementState, MouseButton, WindowEvent};
 
-use crate::{shapes::BoundingBox, utils::*};
+use crate::{views::Rect, utils::*};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseEventKind {
@@ -59,12 +59,12 @@ pub struct MouseEventRouter<'cx, UiState> {
     cursor_position: Mutex<Option<Point2<f32>>>,
     /// Using `u64` as storage for `f64`, as rust doesn't have an `AtomicF64`.
     scale_factor: AtomicU64,
-    bounds: Mutex<BoundingBox>,
+    bounds: Mutex<Rect>,
     listeners: Mutex<Vec<Listener<'cx, UiState>>>,
 }
 
 impl<'cx, UiState> MouseEventRouter<'cx, UiState> {
-    pub fn new(bounds: BoundingBox) -> Self {
+    pub fn new(bounds: Rect) -> Self {
         Self {
             cursor_position: Mutex::new(None),
             scale_factor: AtomicU64::new(bytemuck::cast(1.0f64)),
@@ -75,7 +75,7 @@ impl<'cx, UiState> MouseEventRouter<'cx, UiState> {
 
     pub fn register_listener(
         self: &Arc<Self>,
-        bounds: BoundingBox,
+        bounds: Rect,
         listener: impl MouseEventListener<'cx, UiState>,
     ) -> ListenerHandle<'cx, UiState> {
         let mut listeners = self.listeners.lock().unwrap();
@@ -189,11 +189,11 @@ impl<'cx, UiState> MouseEventRouter<'cx, UiState> {
         should_redraw
     }
 
-    pub fn set_bounds(&self, bounding_box: BoundingBox) {
+    pub fn set_bounds(&self, bounding_box: Rect) {
         *self.bounds.lock().unwrap() = bounding_box;
     }
 
-    pub fn get_bounds(&self) -> BoundingBox {
+    pub fn get_bounds(&self) -> Rect {
         *self.bounds.lock().unwrap()
     }
 
@@ -220,7 +220,7 @@ impl<'cx, UiState> MouseEventRouter<'cx, UiState> {
 }
 
 struct Listener<'cx, UiState> {
-    bounds: BoundingBox,
+    bounds: Rect,
     is_hovered: bool,
     is_pressed: bool,
     object: Box<dyn MouseEventListener<'cx, UiState>>,

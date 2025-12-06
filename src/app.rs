@@ -10,12 +10,14 @@ use winit::{
 };
 
 use crate::{
-    button::{Button, ButtonRenderer},
     mouse_event::MouseEventRouter,
     resources::AppResources,
-    shapes::{BoundingBox, Font, Rect, RectRenderer, TextRenderer},
     theme::{ButtonKind, Theme},
     utils::*,
+    views::{
+        Rect, ButtonRenderer, ButtonView, Font, RectRenderer, RectView, TextRenderer,
+        TextView,
+    },
     wgpu_utils::{Canvas as _, CanvasView, ProjectionSpace, WindowCanvas},
 };
 
@@ -30,7 +32,7 @@ impl<'cx> Application<'cx> {
     pub fn new(resources: &'cx AppResources) -> Self {
         Self {
             resources,
-            mouse_event_router: Arc::new(MouseEventRouter::new(BoundingBox::default())),
+            mouse_event_router: Arc::new(MouseEventRouter::new(Rect::default())),
             window: None,
             ui: None,
         }
@@ -70,7 +72,7 @@ impl<'cx> ApplicationHandler for Application<'cx> {
         }
         if let WindowEvent::Resized(size_physical) = event {
             let size_logical = size_physical.to_logical::<f32>(window.scale_factor());
-            let bounds = BoundingBox::new(0., 0., size_logical.width, size_logical.height);
+            let bounds = Rect::new(0., 0., size_logical.width, size_logical.height);
             self.mouse_event_router.set_bounds(bounds);
         }
         if let Some(ui) = self.ui.as_mut() {
@@ -105,13 +107,13 @@ struct UiState<'cx> {
     window_canvas: WindowCanvas<'static>,
     text_renderer: TextRenderer<'cx>,
     rect_renderer: RectRenderer<'cx>,
-    rect_background: Rect,
+    rect_background: RectView,
     button_renderer: ButtonRenderer<'cx, UiState<'cx>>,
-    button_mundane: Button<'cx, UiState<'cx>>,
-    button_primary: Button<'cx, UiState<'cx>>,
-    button_toxic: Button<'cx, UiState<'cx>>,
+    button_mundane: ButtonView<'cx, UiState<'cx>>,
+    button_primary: ButtonView<'cx, UiState<'cx>>,
+    button_toxic: ButtonView<'cx, UiState<'cx>>,
     counter: i64,
-    counter_text: crate::shapes::Text,
+    counter_text: TextView,
 }
 
 impl<'cx> UiState<'cx> {
@@ -143,14 +145,15 @@ impl<'cx> UiState<'cx> {
 
         let rect_background = rect_renderer.create_rect(&device);
         rect_background.set_fill_color(&queue, Theme::DEFAULT.primary_background());
-        rect_background.set_parameters(&queue, BoundingBox::new(-1., -1., 2., 2.), 0.);
+        rect_background.set_parameters(&queue, Rect::new(-1., -1., 2., 2.), 0.);
 
         let font = Font::load_from_path(resources, "fonts/big_blue_terminal.json").unwrap();
         let text_renderer =
             TextRenderer::create(&device, &queue, font, resources, canvas_format).unwrap();
 
+        let text_size = 96.;
         let counter_text = text_renderer.create_text(&device, "0");
-        counter_text.set_parameters(&queue, point2(20., 20.), 24.);
+        counter_text.set_parameters(&queue, point2(20., 20.), text_size);
 
         let button_renderer =
             ButtonRenderer::new(text_renderer.clone(), rect_renderer.clone(), event_router);
@@ -158,9 +161,9 @@ impl<'cx> UiState<'cx> {
         let width = 128.;
         let height = 48.;
         let inter_padding = 10.;
-        let y_offset = 54.0f32;
-        let bounding_box = |i: usize| -> BoundingBox {
-            BoundingBox::new(
+        let y_offset = 20. + text_size + inter_padding;
+        let bounding_box = |i: usize| -> Rect {
+            Rect::new(
                 20. + (i as f32) * (width + inter_padding),
                 y_offset,
                 width,

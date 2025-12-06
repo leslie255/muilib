@@ -11,7 +11,7 @@ use winit::event::MouseButton;
 
 use crate::{
     mouse_event::{self, MouseEvent, MouseEventKind, MouseEventListener, MouseEventRouter},
-    shapes::{BoundingBox, LineWidth, Rect, RectRenderer, Text, TextRenderer},
+    views::{Rect, LineWidth, RectView, RectRenderer, TextView, TextRenderer},
     wgpu_utils::{Srgb, Srgba},
 };
 
@@ -132,11 +132,11 @@ impl<'cx, UiState: 'cx> ButtonRenderer<'cx, UiState> {
     pub fn create_button(
         &self,
         device: &wgpu::Device,
-        bounding_box: BoundingBox,
+        bounding_box: Rect,
         style: ButtonStyle,
         title: &str,
         callback: Option<ButtonCallback<'cx, UiState>>,
-    ) -> Button<'cx, UiState> {
+    ) -> ButtonView<'cx, UiState> {
         let rect = self.rect_renderer.create_rect(device);
         let text = self.text_renderer.create_text(device, title);
         let dispatch = Arc::new(ButtonDispatch {
@@ -147,7 +147,7 @@ impl<'cx, UiState: 'cx> ButtonRenderer<'cx, UiState> {
         let mouse_listener_handle = self
             .mouse_event_router
             .register_listener(bounding_box, dispatch.clone());
-        Button {
+        ButtonView {
             title_len: title.len(),
             bounding_box,
             rect,
@@ -158,7 +158,7 @@ impl<'cx, UiState: 'cx> ButtonRenderer<'cx, UiState> {
         }
     }
 
-    pub fn prepare_button_for_drawing(&self, queue: &wgpu::Queue, button: &Button<UiState>) {
+    pub fn prepare_button_for_drawing(&self, queue: &wgpu::Queue, button: &ButtonView<UiState>) {
         let style_needs_updating = button
             .dispatch
             .needs_updating
@@ -168,12 +168,12 @@ impl<'cx, UiState: 'cx> ButtonRenderer<'cx, UiState> {
         }
     }
 
-    pub fn draw_button(&self, render_pass: &mut wgpu::RenderPass, button: &Button<UiState>) {
+    pub fn draw_button(&self, render_pass: &mut wgpu::RenderPass, button: &ButtonView<UiState>) {
         self.rect_renderer.draw_rect(render_pass, &button.rect);
         self.text_renderer.draw_text(render_pass, &button.text);
     }
 
-    fn update(&self, queue: &wgpu::Queue, button: &Button<UiState>) {
+    fn update(&self, queue: &wgpu::Queue, button: &ButtonView<UiState>) {
         let state_style = button.style.state_style_for(button.state());
         button.rect.set_fill_color(queue, state_style.fill_color);
         button.rect.set_line_color(queue, state_style.line_color);
@@ -202,23 +202,23 @@ impl<'cx, UiState: 'cx> ButtonRenderer<'cx, UiState> {
 pub type ButtonCallback<'cx, UiState> =
     Box<dyn for<'a> Fn(&'a mut UiState, MouseEvent) + Send + Sync + 'cx>;
 
-pub struct Button<'cx, UiState: 'cx> {
+pub struct ButtonView<'cx, UiState: 'cx> {
     title_len: usize,
-    bounding_box: BoundingBox,
-    rect: Rect,
-    text: Text,
+    bounding_box: Rect,
+    rect: RectView,
+    text: TextView,
     dispatch: Arc<ButtonDispatch<'cx, UiState>>,
     mouse_listener_handle: mouse_event::ListenerHandle<'cx, UiState>,
     style: ButtonStyle,
 }
 
-impl<'cx, UiState> Button<'cx, UiState> {
+impl<'cx, UiState> ButtonView<'cx, UiState> {
     pub fn set_projection(&self, queue: &wgpu::Queue, projection: Matrix4<f32>) {
         self.rect.set_projection(queue, projection);
         self.text.set_projection(queue, projection);
     }
 
-    pub fn bounding_box(&self) -> BoundingBox {
+    pub fn bounding_box(&self) -> Rect {
         self.bounding_box
     }
 
