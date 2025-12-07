@@ -188,6 +188,34 @@ impl LineWidth {
         }
     }
 
+    pub const fn left(&self) -> f32 {
+        match self {
+            LineWidth::Uniform(width) => *width,
+            LineWidth::PerBorder { left, .. } => *left,
+        }
+    }
+
+    pub const fn top(&self) -> f32 {
+        match self {
+            LineWidth::Uniform(width) => *width,
+            LineWidth::PerBorder { top, .. } => *top,
+        }
+    }
+
+    pub const fn right(&self) -> f32 {
+        match self {
+            LineWidth::Uniform(width) => *width,
+            LineWidth::PerBorder { right, .. } => *right,
+        }
+    }
+
+    pub const fn bottom(&self) -> f32 {
+        match self {
+            LineWidth::Uniform(width) => *width,
+            LineWidth::PerBorder { bottom, .. } => *bottom,
+        }
+    }
+
     pub const fn set_left(&mut self, left_width: f32) {
         let [_, top, right, bottom] = self.to_array();
         *self = Self::PerBorder {

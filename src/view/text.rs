@@ -119,7 +119,7 @@ impl TextView {
 }
 
 impl<UiState> View<UiState> for TextView {
-    fn preferred_size(&self) -> RectSize {
+    fn preferred_size(&mut self) -> RectSize {
         self.size()
     }
 

@@ -100,7 +100,7 @@ impl RectView {
 }
 
 impl<UiState> View<UiState> for RectView {
-    fn preferred_size(&self) -> RectSize {
+    fn preferred_size(&mut self) -> RectSize {
         self.size
     }
 

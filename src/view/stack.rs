@@ -1,10 +1,11 @@
-use std::{iter, mem};
+use std::marker::PhantomData;
 
 use cgmath::*;
 
 use crate::{
     element::{Bounds, RectSize},
-    view::{View, ViewContext},
+    param_getters_setters,
+    view::{ControlFlow, View, ViewContext, ViewList},
 };
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,184 +39,106 @@ pub enum StackLayoutMethod {
     DistributeByPadding,
 }
 
-use subviews_buffer::*;
-mod subviews_buffer {
-    // Invariance inside.
-    use std::mem::{self, transmute};
-
-    use super::*;
-
-    pub(super) struct SubviewsBuffer<'cx, UiState> {
-        inner: Vec<*mut (dyn View<UiState> + 'cx)>,
-    }
-
-    impl<'cx, UiState> Default for SubviewsBuffer<'cx, UiState> {
-        fn default() -> Self {
-            Self::new()
-        }
-    }
-
-    impl<'cx, UiState> Clone for SubviewsBuffer<'cx, UiState> {
-        fn clone(&self) -> Self {
-            Self::new()
-        }
-    }
-
-    impl<'cx, UiState> SubviewsBuffer<'cx, UiState> {
-        pub(super) const fn new() -> Self {
-            Self { inner: Vec::new() }
-        }
-
-        pub(super) fn take<'views>(&mut self) -> Vec<&'views mut (dyn View<UiState> + 'cx)> {
-            let mut inner = mem::take(&mut self.inner);
-            inner.clear();
-            unsafe {
-                transmute::<
-                    Vec<*mut (dyn View<UiState> + 'cx)>,        //
-                    Vec<&'views mut (dyn View<UiState> + 'cx)>, //
-                >(inner)
-            }
-        }
-
-        pub(super) fn set(&mut self, inner: Vec<&mut (dyn View<UiState> + 'cx)>) {
-            self.inner.clear();
-            self.inner = unsafe {
-                transmute::<
-                    Vec<&mut (dyn View<UiState> + 'cx)>, //
-                    Vec<*mut (dyn View<UiState> + 'cx)>, //
-                >(inner)
-            };
-        }
-    }
-}
-
-pub struct HStack<'cx, UiState> {
-    size: RectSize,
+pub struct HStackView<'cx, Subviews: ViewList<'cx>> {
+    subviews: Subviews,
     subview_sizes: Vec<RectSize>,
-    subviews_buffer: SubviewsBuffer<'cx, UiState>,
+    inter_padding: f32,
+    _marker: PhantomData<&'cx ()>,
 }
 
-impl<'cx, UiState> Default for HStack<'cx, UiState> {
-    fn default() -> Self {
+impl<'cx, Subviews: ViewList<'cx>> HStackView<'cx, Subviews> {
+    pub fn new(subviews: Subviews) -> Self {
         Self {
-            size: Default::default(),
-            subview_sizes: Default::default(),
-            subviews_buffer: Default::default(),
-        }
-    }
-}
-
-impl<'cx, UiState> Clone for HStack<'cx, UiState> {
-    fn clone(&self) -> Self {
-        Self {
-            size: self.size,
-            subview_sizes: self.subview_sizes.clone(),
-            subviews_buffer: self.subviews_buffer.clone(),
-        }
-    }
-}
-
-impl<'cx, UiState> HStack<'cx, UiState> {
-    pub const fn new() -> Self {
-        Self {
-            size: RectSize::new(0., 0.),
-            subview_sizes: Vec::new(),
-            subviews_buffer: SubviewsBuffer::new(),
-        }
-    }
-
-    pub fn build<'views>(&mut self) -> HStackBuilder<'_, 'views, 'cx, UiState> {
-        let subviews = self.subviews_buffer.take();
-        HStackBuilder {
-            hstack: self,
             subviews,
+            subview_sizes: Vec::new(),
+            inter_padding: 0.0f32,
+            _marker: PhantomData,
         }
     }
-}
 
-pub struct HStackBuilder<'a, 'views, 'cx, UiState> {
-    hstack: &'a mut HStack<'cx, UiState>,
-    subviews: Vec<&'views mut (dyn View<UiState> + 'cx)>,
-}
-
-impl<'a, 'views, 'cx, UiState> HStackBuilder<'a, 'views, 'cx, UiState> {
-    pub fn subview(&mut self, subview: &'views mut (dyn View<UiState> + 'cx)) {
-        self.subviews.push(subview);
+    param_getters_setters! {
+        vis: pub,
+        param_ty: f32,
+        param: inter_padding,
+        param_mut: inter_padding_mut,
+        set_param: set_inter_padding,
+        with_param: with_inter_padding,
+        param_mut_preamble: |_: &mut Self| (),
     }
 
-    pub fn finish(self) -> HStackView<'a, 'views, 'cx, UiState> {
-        let mut hstack_view = HStackView {
-            hstack: self.hstack,
-            subviews: self.subviews,
-        };
-        hstack_view.relayout();
-        hstack_view
+    pub fn subviews(&self) -> &Subviews {
+        &self.subviews
+    }
+
+    pub fn subviews_mut(&mut self) -> &mut Subviews {
+        &mut self.subviews
     }
 }
 
-pub struct HStackView<'a, 'views, 'cx, UiState> {
-    hstack: &'a mut HStack<'cx, UiState>,
-    subviews: Vec<&'views mut (dyn View<UiState> + 'cx)>,
-}
-
-impl<'a, 'views, 'cx, UiState> Drop for HStackView<'a, 'views, 'cx, UiState> {
-    fn drop(&mut self) {
-        self.hstack
-            .subviews_buffer
-            .set(mem::take(&mut self.subviews));
-    }
-}
-
-impl<'a, 'views, 'cx, UiState> HStackView<'a, 'views, 'cx, UiState> {
-    pub fn relayout(&mut self) {
-        self.hstack.size = RectSize::new(0., 0.);
-        self.hstack.subview_sizes.clear();
-        for subview in self.subviews.iter() {
+impl<'cx, Subviews: ViewList<'cx>> View<Subviews::UiState> for HStackView<'cx, Subviews> {
+    fn preferred_size(&mut self) -> RectSize {
+        let mut size = RectSize::new(0., 0.);
+        self.subview_sizes.clear();
+        let mut is_first = true;
+        self.subviews.for_each_subview_mut(|subview| {
             let subview_size = subview.preferred_size();
-            self.hstack.size.width += subview_size.width;
-            self.hstack.size.height = self.hstack.size.height.max(subview_size.height);
-            self.hstack.subview_sizes.push(subview_size);
-        }
+            size.height = size.height.max(subview_size.height);
+            size.width += size.width;
+            if !is_first {
+                size.width += self.inter_padding;
+            }
+            is_first = false;
+            self.subview_sizes.push(subview_size);
+            ControlFlow::Continue
+        });
+        size
     }
-}
 
-impl<'a, 'views, 'cx, UiState> View<UiState> for HStackView<'a, 'views, 'cx, UiState> {
-    fn preferred_size(&self) -> RectSize {
-        self.hstack.size
-    }
-
-    fn apply_bounds(&mut self, size: Bounds) {
-        _ = size;
-        let mut x_offset = size.origin.x;
-        let y_offset = size.origin.y;
-        assert!(self.subviews.len() == self.hstack.subview_sizes.len());
-        for (subview, &subview_size) in
-            iter::zip(self.subviews.iter_mut(), self.hstack.subview_sizes.iter())
-        {
-            let top_padding = 0.5 * (self.hstack.size.height - subview_size.height);
-            subview.apply_bounds(Bounds {
-                origin: point2(x_offset, y_offset + top_padding),
-                size: subview_size,
-            });
-            x_offset += subview_size.width;
-        }
+    fn apply_bounds(&mut self, bounds: Bounds) {
+        let mut subview_sizes = self.subview_sizes.iter();
+        let mut offset_counter = bounds.x_min();
+        let mut is_first = true;
+        self.subviews.for_each_subview_mut(|subview| {
+            let Some(&subview_size) = subview_sizes.next() else {
+                log::warn!("`HStack::apply_bounds` encountered mismatched view list from the previous `preferred_size`");
+                return ControlFlow::Break;
+            };
+            is_first = false;
+            let top_padding = 0.5 * (bounds.height() - subview_size.height);
+            let bounds = Bounds::new(
+                point2(offset_counter, bounds.y_min() + top_padding),
+                subview_size,
+            );
+            subview.apply_bounds(bounds);
+            offset_counter += subview_size.width;
+            if !is_first {
+                offset_counter += self.inter_padding;
+            }
+            ControlFlow::Continue
+        });
     }
 
     fn prepare_for_drawing(
         &mut self,
-        view_context: &ViewContext<UiState>,
+        view_context: &ViewContext<Subviews::UiState>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         canvas: &crate::wgpu_utils::CanvasView,
     ) {
-        for subview in self.subviews.iter_mut() {
+        self.subviews.for_each_subview_mut(|subview| {
             subview.prepare_for_drawing(view_context, device, queue, canvas);
-        }
+            ControlFlow::Continue
+        });
     }
 
-    fn draw(&self, view_context: &ViewContext<UiState>, render_pass: &mut wgpu::RenderPass) {
-        for subview in self.subviews.iter() {
+    fn draw(
+        &self,
+        view_context: &ViewContext<Subviews::UiState>,
+        render_pass: &mut wgpu::RenderPass,
+    ) {
+        self.subviews.for_each_subview(|subview| {
             subview.draw(view_context, render_pass);
-        }
+            ControlFlow::Continue
+        });
     }
 }

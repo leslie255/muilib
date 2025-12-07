@@ -188,7 +188,7 @@ impl<'cx, UiState> ButtonView<'cx, UiState> {
 }
 
 impl<'cx, UiState: 'cx> View<UiState> for ButtonView<'cx, UiState> {
-    fn preferred_size(&self) -> RectSize {
+    fn preferred_size(&mut self) -> RectSize {
         self.size()
     }
 

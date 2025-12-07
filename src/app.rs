@@ -12,11 +12,12 @@ use winit::{
 
 use crate::{
     element::{Bounds, RectSize},
+    impl_view_list,
     mouse_event::MouseEventRouter,
     resources::AppResources,
     theme::{ButtonKind, Theme},
     utils::*,
-    view::{ButtonView, HStack, RectView, TextView, View, ViewContext},
+    view::{ButtonView, ControlFlow, HStackView, RectView, TextView, View, ViewContext, ViewList},
     wgpu_utils::{Canvas as _, CanvasView, Srgb, WindowCanvas},
 };
 
@@ -98,6 +99,93 @@ fn init_wgpu() -> (wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue) {
     (instance, adapter, device, queue)
 }
 
+struct Stack0<'cx> {
+    rect_views: Vec<RectView>,
+    button_view: ButtonView<'cx, UiState<'cx>>,
+}
+impl<'cx> ViewList<'cx> for Stack0<'cx> {
+    type UiState = UiState<'cx>;
+    impl_view_list! {
+        'cx,
+        rect_views(iter),
+        button_view,
+    }
+}
+
+impl<'cx> Stack0<'cx> {
+    pub fn new(view_context: &ViewContext<'cx, UiState<'cx>>) -> HStackView<'cx, Self> {
+        let colors = [0x008080, 0x404080, 0x2040A0];
+        let line_width = 2.;
+        HStackView::new(Self {
+            rect_views: colors
+                .into_iter()
+                .map(|color| {
+                    RectView::new(RectSize::new(64., 64.))
+                        .with_fill_color(Srgb::from_hex(color))
+                        .with_line_color(Srgb::from_hex(0xFFFFFF))
+                        .with_line_width(line_width)
+                })
+                .collect(),
+            button_view: {
+                let mut button_view = ButtonView::new(
+                    view_context,
+                    Theme::DEFAULT
+                        .button_style(ButtonKind::Primary)
+                        .with_font_size(24.)
+                        .with_line_width(4.),
+                    Some(Box::new(|_, event| {
+                        log::debug!("[Stack0] received button event: {event:?}")
+                    })),
+                )
+                .with_size(RectSize::new(128., 48.));
+                button_view.set_title(String::from("Button"));
+                button_view
+            },
+        })
+        .with_inter_padding(10.)
+    }
+}
+
+struct Stack1<'cx> {
+    text_view: TextView,
+    button_view: ButtonView<'cx, UiState<'cx>>,
+}
+impl<'cx> ViewList<'cx> for Stack1<'cx> {
+    type UiState = UiState<'cx>;
+    impl_view_list! {
+        'cx,
+        text_view,
+        button_view,
+    }
+}
+
+impl<'cx> Stack1<'cx> {
+    pub fn new(view_context: &ViewContext<'cx, UiState<'cx>>) -> HStackView<'cx, Self> {
+        HStackView::new(Self {
+            text_view: TextView::new(view_context)
+                .with_font_size(32.)
+                .with_fg_color(Srgb::from_hex(0xFFFFFF))
+                .with_bg_color(Srgb::from_hex(0x308050)),
+            button_view: {
+                let mut button_view = ButtonView::new(
+                    view_context,
+                    Theme::DEFAULT
+                        .button_style(ButtonKind::Mundane)
+                        .with_font_size(24.)
+                        .with_line_width(4.),
+                    Some(Box::new(|_, event| {
+                        log::debug!("[Stack0] received button event: {event:?}")
+                    })),
+                )
+                .with_size(RectSize::new(128., 48.));
+                button_view.set_title(String::from("Button"));
+                button_view
+            },
+        })
+        .with_inter_padding(10.)
+    }
+}
+
 struct UiState<'cx> {
     resources: &'cx AppResources,
     device: wgpu::Device,
@@ -106,12 +194,8 @@ struct UiState<'cx> {
     window_canvas: WindowCanvas<'static>,
     view_context: ViewContext<'cx, Self>,
     background_rect_view: RectView,
-    rect_views: Vec<RectView>,
-    text_view: TextView,
-    button_view_0: ButtonView<'cx, Self>,
-    button_view_1: ButtonView<'cx, Self>,
-    hstack_0: HStack<'cx, Self>,
-    hstack_1: HStack<'cx, Self>,
+    hstack_view_0: HStackView<'cx, Stack0<'cx>>,
+    hstack_view_1: HStackView<'cx, Stack1<'cx>>,
 }
 
 impl<'cx> UiState<'cx> {
@@ -147,79 +231,17 @@ impl<'cx> UiState<'cx> {
         )
         .unwrap_or_else(|e| panic!("{e}"));
 
-        let colors = [0x008080, 0x404080, 0x2040A0];
-        let line_width = 2.;
-        let rect_views: Vec<RectView> =
-            Vec::from_iter(colors.into_iter().enumerate().map(|(i, color)| {
-                let mut rect_view = RectView::new(RectSize::new(64., 64.))
-                    .with_fill_color(Srgb::from_hex(color))
-                    .with_line_color(Srgb::from_hex(0xFFFFFF))
-                    .with_line_width(line_width);
-                let is_last = i + 1 == colors.len();
-                let is_first = i == 0;
-                if is_first {
-                    rect_view.size_mut().width -= 1.;
-                    rect_view.line_width_mut().set_right(0.5 * line_width);
-                } else if is_last {
-                    rect_view.size_mut().width -= 1.;
-                    rect_view.line_width_mut().set_left(0.5 * line_width);
-                }
-                rect_view
-            }));
-
-        let mut text_view = TextView::new(&view_context)
-            .with_font_size(24.)
-            .with_bg_color(Srgb::from_hex(0x308050))
-            .with_fg_color(Srgb::from_hex(0xFFFFFF));
-        text_view.set_text(String::from("Hello, World!"));
-
-        let mut button_view_0 = ButtonView::new(
-            &view_context,
-            Theme::DEFAULT
-                .button_style(ButtonKind::Primary)
-                .with_font_size(24.)
-                .with_line_width(4.),
-            Some(Box::new(|_self, event| {
-                log::debug!("event received from button: {event:?}");
-                if event.is_button_trigger() {
-                    log::debug!("TRIGGERED!");
-                }
-            })),
-        )
-        .with_size(RectSize::new(128., 48.));
-        button_view_0.set_title(String::from("Button"));
-
-        let mut button_view_1 = ButtonView::new(
-            &view_context,
-            Theme::DEFAULT
-                .button_style(ButtonKind::Mundane)
-                .with_font_size(24.)
-                .with_line_width(4.),
-            Some(Box::new(|_self, event| {
-                log::debug!("event received from button: {event:?}");
-                if event.is_button_trigger() {
-                    log::debug!("TRIGGERED!");
-                }
-            })),
-        )
-        .with_size(RectSize::new(128., 48.));
-        button_view_1.set_title(String::from("Button"));
-
         let mut self_ = Self {
             resources,
             device,
             queue,
             window,
             window_canvas,
-            view_context,
             background_rect_view: the_default::<RectView>()
                 .with_fill_color(Theme::DEFAULT.primary_background()),
-            rect_views,
-            text_view,
-            button_view_0,
-            button_view_1,
-            hstack_0: the_default(),
-            hstack_1: the_default(),
+            hstack_view_0: Stack0::new(&view_context),
+            hstack_view_1: Stack1::new(&view_context),
+            view_context,
         };
         self_.window_resized();
         self_
@@ -247,38 +269,22 @@ impl<'cx> UiState<'cx> {
         let seconds = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs_f64();
         let wave = ((f64::sin(seconds * std::f64::consts::TAU / 4.) + 1.) * 0.5) as f32;
 
-        let button_view_1 = &mut self.button_view_1;
-        let mut hstack_view_1 = {
-            let mut builder = self.hstack_1.build();
-            let mut string = String::with_capacity((12. * wave).round() as usize);
-            for _ in 0..string.capacity() {
+        for rect_view in &mut self.hstack_view_0.subviews_mut().rect_views {
+            let min_width = rect_view.line_width().left() + rect_view.line_width().right();
+            rect_view.size_mut().width = (64. - min_width) * wave + min_width;
+        }
+
+        let text_view = &mut self.hstack_view_1.subviews_mut().text_view;
+        text_view.set_text({
+            let wave_u = (wave * 12.).round() as usize;
+            let mut string = String::with_capacity(wave_u);
+            for _ in 0..wave_u {
                 string.push('A');
             }
-            self.text_view.set_text(string);
-            builder.subview(&mut self.text_view);
-            builder.subview(button_view_1);
-            builder.finish()
-        };
-
-        let mut hstack_view_0 = {
-            let mut builder = self.hstack_0.build();
-            for rect_view in &mut self.rect_views {
-                rect_view.size_mut().width = 64. * wave;
-                builder.subview(rect_view);
-            }
-            builder.subview(&mut self.button_view_0);
-            builder.finish()
-        };
+            string
+        });
 
         let padding = 10.;
-
-        let hstack_view_0_bounds = self.view_context.prepare_view(
-            &self.device,
-            &self.queue,
-            &canvas,
-            point2(2. * padding, 2. * padding),
-            &mut hstack_view_0,
-        );
 
         self.view_context.prepare_view_bounded(
             &self.device,
@@ -286,6 +292,14 @@ impl<'cx> UiState<'cx> {
             &canvas,
             canvas.bounds(),
             &mut self.background_rect_view,
+        );
+
+        let hstack_view_0_bounds = self.view_context.prepare_view(
+            &self.device,
+            &self.queue,
+            &canvas,
+            point2(2. * padding, 2. * padding),
+            &mut self.hstack_view_0,
         );
 
         self.view_context.prepare_view(
@@ -296,15 +310,15 @@ impl<'cx> UiState<'cx> {
                 hstack_view_0_bounds.x_min(),
                 hstack_view_0_bounds.y_max() + padding,
             ),
-            &mut hstack_view_1,
+            &mut self.hstack_view_1,
         );
 
         self.view_context
             .draw_view(&mut render_pass, &self.background_rect_view);
         self.view_context
-            .draw_view(&mut render_pass, &hstack_view_0);
+            .draw_view(&mut render_pass, &self.hstack_view_0);
         self.view_context
-            .draw_view(&mut render_pass, &hstack_view_1);
+            .draw_view(&mut render_pass, &self.hstack_view_1);
 
         drop(render_pass);
 
