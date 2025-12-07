@@ -43,22 +43,4 @@ macro_rules! param_getters_setters {
             self
         }
     };
-
-    // Convenience pattern for ignoring `vis`.
-    {
-        param_ty: $ty:ty,
-        param: $param:ident,
-        param_mut: $param_mut:ident,
-        param_mut_preamble: $param_mut_preamble:expr,
-        set_param: $set_param:ident $(,)?
-    } => {
-        param_getters_setters! {
-            vis: pub(self),
-            param_ty: $ty,
-            param: $param,
-            param_mut: $param_mut,
-            param_mut_preamble: $param_mut_preamble,
-            set_param: $set_param $(,)?
-        }
-    };
 }

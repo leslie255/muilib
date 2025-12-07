@@ -17,7 +17,10 @@ use crate::{
     resources::AppResources,
     theme::{ButtonKind, Theme},
     utils::*,
-    view::{ButtonView, ControlFlow, HStackView, RectView, TextView, View, ViewContext, ViewList},
+    view::{
+        ButtonView, ControlFlow, HStackView, RectView, SpreadView, TextView, View, ViewContext,
+        ViewList,
+    },
     wgpu_utils::{Canvas as _, CanvasView, Srgb, WindowCanvas},
 };
 
@@ -114,7 +117,7 @@ impl<'cx> ViewList<'cx> for Stack0<'cx> {
 
 impl<'cx> Stack0<'cx> {
     pub fn new(view_context: &ViewContext<'cx, UiState<'cx>>) -> HStackView<'cx, Self> {
-        let colors = [0x008080, 0x404080, 0x2040A0];
+        let colors = [0x008080, 0x404080, 0xB04020];
         let line_width = 2.;
         HStackView::new(Self {
             rect_views: colors
@@ -147,15 +150,15 @@ impl<'cx> Stack0<'cx> {
 }
 
 struct Stack1<'cx> {
-    text_view: TextView,
     button_view: ButtonView<'cx, UiState<'cx>>,
+    text_view: TextView,
 }
 impl<'cx> ViewList<'cx> for Stack1<'cx> {
     type UiState = UiState<'cx>;
     impl_view_list! {
         'cx,
-        text_view,
         button_view,
+        text_view,
     }
 }
 
@@ -194,8 +197,8 @@ struct UiState<'cx> {
     window_canvas: WindowCanvas<'static>,
     view_context: ViewContext<'cx, Self>,
     background_rect_view: RectView,
-    hstack_view_0: HStackView<'cx, Stack0<'cx>>,
-    hstack_view_1: HStackView<'cx, Stack1<'cx>>,
+    hstack_view_0: SpreadView<HStackView<'cx, Stack0<'cx>>>,
+    hstack_view_1: SpreadView<HStackView<'cx, Stack1<'cx>>>,
 }
 
 impl<'cx> UiState<'cx> {
@@ -239,8 +242,8 @@ impl<'cx> UiState<'cx> {
             window_canvas,
             background_rect_view: the_default::<RectView>()
                 .with_fill_color(Theme::DEFAULT.primary_background()),
-            hstack_view_0: Stack0::new(&view_context),
-            hstack_view_1: Stack1::new(&view_context),
+            hstack_view_0: SpreadView::horizontal(Stack0::new(&view_context)),
+            hstack_view_1: SpreadView::horizontal(Stack1::new(&view_context)),
             view_context,
         };
         self_.window_resized();
@@ -298,7 +301,7 @@ impl<'cx> UiState<'cx> {
             &self.device,
             &self.queue,
             &canvas,
-            point2(2. * padding, 2. * padding),
+            point2(20., 20.),
             &mut self.hstack_view_0,
         );
 
@@ -306,10 +309,7 @@ impl<'cx> UiState<'cx> {
             &self.device,
             &self.queue,
             &canvas,
-            point2(
-                hstack_view_0_bounds.x_min(),
-                hstack_view_0_bounds.y_max() + padding,
-            ),
+            point2(0., hstack_view_0_bounds.y_max() + padding),
             &mut self.hstack_view_1,
         );
 

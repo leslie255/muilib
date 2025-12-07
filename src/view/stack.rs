@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LayoutDirection {
+pub enum StackAlignment {
     #[default]
     Center,
     /// Left for horizontal stacks; up for vertical stacks.
@@ -18,31 +18,12 @@ pub enum LayoutDirection {
     Trailing,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum StackLayoutMethod {
-    // ```
-    // |......[VIEW] [VIEW] [VIEW]......|
-    // ```
-    Packed {
-        direction: LayoutDirection,
-        padding: f32,
-    },
-    // ```
-    // | [..VIEW..] [..VIEW..] [..VIEW..] |
-    // ```
-    DistributeByStretching {
-        padding: f32,
-    },
-    // ```
-    // |...[VIEW]...[VIEW]...[VIEW]...|
-    // ```
-    DistributeByPadding,
-}
-
 pub struct HStackView<'cx, Subviews: ViewList<'cx>> {
     subviews: Subviews,
+    size: RectSize,
     subview_sizes: Vec<RectSize>,
     inter_padding: f32,
+    direction: StackAlignment,
     _marker: PhantomData<&'cx ()>,
 }
 
@@ -50,8 +31,10 @@ impl<'cx, Subviews: ViewList<'cx>> HStackView<'cx, Subviews> {
     pub fn new(subviews: Subviews) -> Self {
         Self {
             subviews,
+            size: RectSize::new(0., 0.),
             subview_sizes: Vec::new(),
             inter_padding: 0.0f32,
+            direction: StackAlignment::Center,
             _marker: PhantomData,
         }
     }
@@ -66,12 +49,30 @@ impl<'cx, Subviews: ViewList<'cx>> HStackView<'cx, Subviews> {
         param_mut_preamble: |_: &mut Self| (),
     }
 
+    param_getters_setters! {
+        vis: pub,
+        param_ty: StackAlignment,
+        param: direction,
+        param_mut: direction_mut,
+        set_param: set_direction,
+        with_param: with_direction,
+        param_mut_preamble: |_: &mut Self| (),
+    }
+
     pub fn subviews(&self) -> &Subviews {
         &self.subviews
     }
 
     pub fn subviews_mut(&mut self) -> &mut Subviews {
         &mut self.subviews
+    }
+
+    fn initial_offset(&self, bounds: Bounds) -> f32 {
+        match self.direction {
+            StackAlignment::Center => bounds.x_min() + 0.5 * (bounds.width() - self.size.width),
+            StackAlignment::Leading => bounds.x_min(),
+            StackAlignment::Trailing => bounds.x_max() - self.size.width,
+        }
     }
 }
 
@@ -83,7 +84,7 @@ impl<'cx, Subviews: ViewList<'cx>> View<Subviews::UiState> for HStackView<'cx, S
         self.subviews.for_each_subview_mut(|subview| {
             let subview_size = subview.preferred_size();
             size.height = size.height.max(subview_size.height);
-            size.width += size.width;
+            size.width += subview_size.width;
             if !is_first {
                 size.width += self.inter_padding;
             }
@@ -91,12 +92,13 @@ impl<'cx, Subviews: ViewList<'cx>> View<Subviews::UiState> for HStackView<'cx, S
             self.subview_sizes.push(subview_size);
             ControlFlow::Continue
         });
-        size
+        self.size = size;
+        RectSize::new(size.width, size.height)
     }
 
     fn apply_bounds(&mut self, bounds: Bounds) {
         let mut subview_sizes = self.subview_sizes.iter();
-        let mut offset_counter = bounds.x_min();
+        let mut offset_counter = self.initial_offset(bounds);
         let mut is_first = true;
         self.subviews.for_each_subview_mut(|subview| {
             let Some(&subview_size) = subview_sizes.next() else {
