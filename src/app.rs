@@ -19,9 +19,9 @@ use crate::{
     utils::*,
     view::{
         ButtonView, ControlFlow, HStackView, RectView, SpreadView, StackLayout, TextView,
-        VStackView, View, ViewContext, ViewList,
+        VStackView, View, ViewContext, ViewList, view_lists::*,
     },
-    wgpu_utils::{Canvas as _, CanvasView, Srgb, WindowCanvas},
+    wgpu_utils::{Canvas as _, CanvasView, Srgb, Srgba, WindowCanvas},
 };
 
 pub(crate) struct Application<'cx> {
@@ -136,12 +136,15 @@ impl<'cx> HStack0<'cx> {
                         .button_style(ButtonKind::Primary)
                         .with_font_size(24.)
                         .with_line_width(4.),
-                    Some(Box::new(|_, event| {
-                        log::debug!("[Stack0] received button event: {event:?}")
+                    Some(Box::new(|ui_state, event| {
+                        if event.is_button_trigger() {
+                            ui_state.counter += 1;
+                            ui_state.update_counter_text();
+                        }
                     })),
                 )
                 .with_size(RectSize::new(128., 48.));
-                button_view.set_title(String::from("Button"));
+                button_view.set_title(String::from("+1"));
                 button_view
             },
         })
@@ -149,11 +152,11 @@ impl<'cx> HStack0<'cx> {
     }
 }
 
-struct HStack1<'cx> {
+struct HStack2<'cx> {
     button_view: ButtonView<'cx, UiState<'cx>>,
     text_view: TextView,
 }
-impl<'cx> ViewList<'cx> for HStack1<'cx> {
+impl<'cx> ViewList<'cx> for HStack2<'cx> {
     type UiState = UiState<'cx>;
     impl_view_list! {
         'cx,
@@ -162,7 +165,7 @@ impl<'cx> ViewList<'cx> for HStack1<'cx> {
     }
 }
 
-impl<'cx> HStack1<'cx> {
+impl<'cx> HStack2<'cx> {
     pub fn new(view_context: &ViewContext<'cx, UiState<'cx>>) -> HStackView<'cx, Self> {
         HStackView::new(Self {
             text_view: TextView::new(view_context)
@@ -176,39 +179,19 @@ impl<'cx> HStack1<'cx> {
                         .button_style(ButtonKind::Mundane)
                         .with_font_size(24.)
                         .with_line_width(4.),
-                    Some(Box::new(|_, event| {
-                        log::debug!("[Stack0] received button event: {event:?}")
+                    Some(Box::new(|ui_state, event| {
+                        if event.is_button_trigger() {
+                            ui_state.counter -= 1;
+                            ui_state.update_counter_text();
+                        }
                     })),
                 )
                 .with_size(RectSize::new(128., 48.));
-                button_view.set_title(String::from("Button"));
+                button_view.set_title(String::from("-1"));
                 button_view
             },
         })
         .with_inter_padding(10.)
-    }
-}
-
-struct Stack<'cx> {
-    hstack_view_0: SpreadView<HStackView<'cx, HStack0<'cx>>>,
-    hstack_view_1: SpreadView<HStackView<'cx, HStack1<'cx>>>,
-}
-impl<'cx> ViewList<'cx> for Stack<'cx> {
-    type UiState = UiState<'cx>;
-    impl_view_list! {
-        'cx,
-        hstack_view_0,
-        hstack_view_1,
-    }
-}
-
-impl<'cx> Stack<'cx> {
-    pub fn new(view_context: &ViewContext<'cx, UiState<'cx>>) -> VStackView<'cx, Self> {
-        VStackView::new(Self {
-            hstack_view_0: SpreadView::horizontal(HStack0::new(view_context)),
-            hstack_view_1: SpreadView::horizontal(HStack1::new(view_context)),
-        })
-        .with_layout(StackLayout::EqualSpacing)
     }
 }
 
@@ -220,7 +203,19 @@ struct UiState<'cx> {
     window_canvas: WindowCanvas<'static>,
     view_context: ViewContext<'cx, Self>,
     background_rect_view: RectView,
-    stack: SpreadView<VStackView<'cx, Stack<'cx>>>,
+    counter: i64,
+    #[allow(clippy::type_complexity)]
+    stack: SpreadView<
+        VStackView<
+            'cx,
+            ViewList3<
+                Self,
+                SpreadView<HStackView<'cx, HStack0<'cx>>>,
+                SpreadView<HStackView<'cx, ViewList1<Self, TextView>>>,
+                SpreadView<HStackView<'cx, HStack2<'cx>>>,
+            >,
+        >,
+    >,
 }
 
 impl<'cx> UiState<'cx> {
@@ -264,11 +259,30 @@ impl<'cx> UiState<'cx> {
             window_canvas,
             background_rect_view: the_default::<RectView>()
                 .with_fill_color(Theme::DEFAULT.primary_background()),
-            stack: SpreadView::vertical(Stack::new(&view_context)),
+            counter: 0,
+            stack: SpreadView::vertical(
+                VStackView::new(ViewList3::new(
+                    SpreadView::horizontal(HStack0::new(&view_context)),
+                    SpreadView::horizontal(HStackView::new(ViewList1::new(
+                        TextView::new(&view_context)
+                            .with_font_size(48.0)
+                            .with_bg_color(Srgba::from_hex(0x00000000))
+                            .with_fg_color(Srgb::from_hex(0xFFFFFF)),
+                    ))),
+                    SpreadView::horizontal(HStack2::new(&view_context)),
+                ))
+                .with_layout(StackLayout::EqualSpacing),
+            ),
             view_context,
         };
         self_.window_resized();
+        self_.update_counter_text();
         self_
+    }
+
+    fn update_counter_text(&mut self) {
+        let text_view = &mut self.stack.subviews_mut().view1.subviews_mut().view0;
+        text_view.set_text(format!("{}", self.counter));
     }
 
     fn frame(&mut self, canvas: CanvasView) {
@@ -293,31 +307,24 @@ impl<'cx> UiState<'cx> {
         let seconds = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs_f64();
         let wave = ((f64::sin(seconds * std::f64::consts::TAU / 4.) + 1.) * 0.5) as f32;
 
-        for rect_view in &mut self
-            .stack
-            .subviews_mut()
-            .hstack_view_0
-            .subviews_mut()
-            .rect_views
-        {
+        for rect_view in &mut self.stack.subviews_mut().view0.subviews_mut().rect_views {
             let min_width = rect_view.line_width().left() + rect_view.line_width().right();
             rect_view.size_mut().width = (64. - min_width) * wave + min_width;
         }
 
-        let text_view = &mut self
-            .stack
+        self.stack
             .subviews_mut()
-            .hstack_view_1
+            .view2
             .subviews_mut()
-            .text_view;
-        text_view.set_text({
-            let wave_u = (wave * 12.).round() as usize;
-            let mut string = String::with_capacity(wave_u);
-            for _ in 0..wave_u {
-                string.push('A');
-            }
-            string
-        });
+            .text_view
+            .set_text({
+                let wave_u = (wave * 12.).round() as usize;
+                let mut string = String::with_capacity(wave_u);
+                for _ in 0..wave_u {
+                    string.push('A');
+                }
+                string
+            });
 
         self.view_context.prepare_view_bounded(
             &self.device,

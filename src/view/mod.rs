@@ -17,6 +17,8 @@ pub use text::*;
 pub use view_context::*;
 pub use abstract_views::*;
 
+pub mod view_lists;
+
 pub trait View<UiState> {
     fn preferred_size(&mut self) -> RectSize;
     fn apply_bounds(&mut self, bounds: Bounds);
