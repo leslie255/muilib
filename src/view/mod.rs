@@ -136,7 +136,7 @@ impl<'cx, UiState> ViewContext<'cx, UiState> {
         &self.text_renderer
     }
 
-    pub fn mouse_event_router(&self) -> &MouseEventRouter<'cx, UiState> {
+    pub fn mouse_event_router(&self) -> &Arc<MouseEventRouter<'cx, UiState>> {
         &self.mouse_event_router
     }
 }

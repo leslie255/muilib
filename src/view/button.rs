@@ -10,9 +10,10 @@ use cgmath::*;
 use winit::event::MouseButton;
 
 use crate::{
-    element::{Bounds, LineWidth, RectElement, RectRenderer, TextElement, TextRenderer},
+    element::{Bounds, LineWidth, RectElement, RectRenderer, RectSize, TextElement, TextRenderer},
     mouse_event::{self, MouseEvent, MouseEventKind, MouseEventListener, MouseEventRouter},
-    view::ViewContext,
+    param_getters_setters,
+    view::{RectView, TextView, View, ViewContext, text},
     wgpu_utils::{Srgb, Srgba},
 };
 
@@ -50,6 +51,8 @@ impl AtomicButtonState {
 /// Button style for all `ButtonState`s.
 #[derive(Debug, Clone, Copy)]
 pub struct ButtonStyle {
+    pub line_width: LineWidth,
+    pub font_size: f32,
     pub idle_style: ButtonStateStyle,
     pub hovered_style: ButtonStateStyle,
     pub pressed_style: ButtonStateStyle,
@@ -66,200 +69,207 @@ impl ButtonStyle {
     }
 
     pub fn with_line_width(self, line_width: impl Into<LineWidth>) -> Self {
-        let line_width = line_width.into();
         Self {
-            idle_style: ButtonStateStyle {
-                line_width,
-                ..self.idle_style
-            },
-            hovered_style: ButtonStateStyle {
-                line_width,
-                ..self.hovered_style
-            },
-            pressed_style: ButtonStateStyle {
-                line_width,
-                ..self.pressed_style
-            },
+            line_width: line_width.into(),
+            ..self
         }
     }
 
     pub fn with_font_size(self, font_size: f32) -> Self {
-        Self {
-            idle_style: ButtonStateStyle {
-                font_size,
-                ..self.idle_style
-            },
-            hovered_style: ButtonStateStyle {
-                font_size,
-                ..self.hovered_style
-            },
-            pressed_style: ButtonStateStyle {
-                font_size,
-                ..self.pressed_style
-            },
-        }
+        Self { font_size, ..self }
     }
 }
 
+/// State-specific button style.
 #[derive(Debug, Clone, Copy)]
 pub struct ButtonStateStyle {
-    pub line_width: LineWidth,
-    pub font_size: f32,
     pub text_color: Srgb,
     pub fill_color: Srgb,
     pub line_color: Srgb,
 }
 
-// pub fn prepare_button_for_drawing(&self, queue: &wgpu::Queue, button: &ButtonView<UiState>) {
-//     let style_needs_updating = button
-//         .dispatch
-//         .needs_updating
-//         .fetch_and(false, atomic::Ordering::AcqRel);
-//     if style_needs_updating {
-//         self.update(queue, button);
-//     }
-// }
+pub type ButtonCallback<'cx, UiState> =
+    Box<dyn for<'a> Fn(&'a mut UiState, MouseEvent) + Send + Sync + 'cx>;
 
-// pub fn draw_button(&self, render_pass: &mut wgpu::RenderPass, button: &ButtonView<UiState>) {
-//     self.rect_renderer
-//         .draw_rect(render_pass, &button.rect_element);
-//     self.text_renderer
-//         .draw_text(render_pass, &button.text_element);
-// }
+pub struct ButtonView<'cx, UiState: 'cx> {
+    rect_view: RectView,
+    text_view: TextView,
+    style: ButtonStyle,
+    needs_update_bounds: bool,
+    dispatch: Arc<ButtonDispatch<'cx, UiState>>,
+    listener_handle: mouse_event::ListenerHandle<'cx, UiState>,
+}
 
-// fn update(&self, queue: &wgpu::Queue, button: &ButtonView<UiState>) {
-//     let state_style = button.style.state_style_for(button.state());
-//     button
-//         .rect_element
-//         .set_fill_color(queue, state_style.fill_color);
-//     button
-//         .rect_element
-//         .set_line_color(queue, state_style.line_color);
-//     button
-//         .rect_element
-//         .set_parameters(queue, button.rect, state_style.line_width);
-//     button
-//         .text_element
-//         .set_fg_color(queue, state_style.text_color);
-//     button
-//         .text_element
-//         .set_bg_color(queue, Srgba::from_hex(0x00000000));
-//     // Assuming text is single-line.
-//     let text_height = state_style.font_size;
-//     let text_width = (button.title_len as f32)
-//         * self.text_renderer.font().glyph_relative_height()
-//         * text_height;
-//     let top_padding = 0.5 * (button.rect.size.height - text_height);
-//     let left_padding = 0.5 * (button.rect.size.width - text_width);
-//     let text_origin = point2(
-//         button.rect.x_min() + left_padding,
-//         button.rect.y_min() + top_padding,
-//     );
-//     button
-//         .text_element
-//         .set_parameters(queue, text_origin, state_style.font_size);
-// }
+impl<'cx, UiState> ButtonView<'cx, UiState> {
+    pub fn new(
+        view_context: &ViewContext<'cx, UiState>,
+        style: ButtonStyle,
+        callback: Option<ButtonCallback<'cx, UiState>>,
+    ) -> Self {
+        let default_size = RectSize::new(64., 24.);
+        let dispatch = Arc::new(ButtonDispatch {
+            state: AtomicButtonState::new(ButtonState::Idle),
+            state_updated: AtomicBool::new(true),
+            callback,
+        });
+        let listener_handle = view_context.mouse_event_router().register_listener(
+            Bounds::new(0., 0., default_size.width, default_size.height),
+            dispatch.clone(),
+        );
+        let mut self_ = Self {
+            rect_view: RectView::new(default_size),
+            text_view: TextView::new(view_context),
+            style,
+            needs_update_bounds: true,
+            dispatch,
+            listener_handle,
+        };
+        self_.set_style(style);
+        self_
+    }
 
-// pub type ButtonCallback<'cx, UiState> =
-//     Box<dyn for<'a> Fn(&'a mut UiState, MouseEvent) + Send + Sync + 'cx>;
-// 
-// pub struct ButtonView<'cx, UiState: 'cx> {
-//     title_len: usize,
-//     bounds: Bounds,
-//     rect_element: RectElement,
-//     text_element: TextElement,
-//     dispatch: Arc<ButtonDispatch<'cx, UiState>>,
-//     mouse_listener_handle: mouse_event::ListenerHandle<'cx, UiState>,
-//     style: ButtonStyle,
-// }
-// 
-// impl<'cx, UiState> ButtonView<'cx, UiState> {
-//     pub fn new(
-//         view_context: ViewContext<UiState>,
-//         device: &wgpu::Device,
-//         title: &str,
-//         mouse_event_router: Arc<MouseEventRouter<'cx, UiState>>,
-//     ) -> Self {
-//         let rect_element = view_context.rect_renderer.create_rect(device);
-//         let text_element = view_context.text_renderer.create_text(device, title);
-//         let dispatch = Arc::new(ButtonDispatch {
-//             state: AtomicButtonState::new(ButtonState::Idle),
-//             needs_updating: true.into(),
-//             callback: None,
-//         });
-//         let mouse_listener_handle = view_context
-//             .mouse_event_router
-//             .register_listener(rect, dispatch.clone());
-//         ButtonView {
-//             title_len: title.len(),
-//             bounds: rect,
-//             rect_element,
-//             text_element,
-//             dispatch,
-//             mouse_listener_handle,
-//             style,
-//         }
-//     }
-// 
-//     pub fn set_projection(&self, queue: &wgpu::Queue, projection: Matrix4<f32>) {
-//         self.rect_element.set_projection(queue, projection);
-//         self.text_element.set_projection(queue, projection);
-//     }
-// 
-//     pub fn bounding_box(&self) -> Bounds {
-//         self.bounds
-//     }
-// 
-//     pub fn state(&self) -> ButtonState {
-//         self.dispatch.state()
-//     }
-// }
-// 
-// struct ButtonDispatch<'cx, UiState> {
-//     state: AtomicButtonState,
-//     /// Flag for when GPU-side things needs updating after something has changed.
-//     needs_updating: AtomicBool,
-//     callback: Option<ButtonCallback<'cx, UiState>>,
-// }
-// 
-// impl<'cx, UiState> ButtonDispatch<'cx, UiState> {
-//     pub fn state(&self) -> ButtonState {
-//         self.state.load(atomic::Ordering::Acquire)
-//     }
-// 
-//     pub fn set_state(&self, state: ButtonState) {
-//         self.state.store(state, atomic::Ordering::Release);
-//     }
-// }
-// 
-// impl<'cx, UiState> MouseEventListener<UiState> for Arc<ButtonDispatch<'cx, UiState>> {
-//     fn mouse_event(&self, event: MouseEvent, ui_state: &mut UiState) {
-//         let old_state = self.state();
-//         use ButtonState::*;
-//         use MouseEventKind::*;
-//         let new_state = match event.kind {
-//             HoveringStart if old_state == Idle => Hovered,
-//             HoveringStart if old_state == PressedOutside => Pressed,
-//             HoveringFinish if old_state == Hovered => Idle,
-//             HoveringFinish if old_state == Pressed => PressedOutside,
-//             ButtonDown {
-//                 button: MouseButton::Left,
-//             } => Pressed,
-//             ButtonUp {
-//                 button: MouseButton::Left,
-//                 inside: true,
-//             } => Hovered,
-//             ButtonUp {
-//                 button: MouseButton::Left,
-//                 inside: false,
-//             } => Idle,
-//             _ => old_state,
-//         };
-//         self.set_state(new_state);
-//         self.needs_updating
-//             .fetch_or(old_state != new_state, atomic::Ordering::AcqRel);
-//         if let Some(callback) = self.callback.as_ref() {
-//             callback(ui_state, event)
-//         }
-//     }
-// }
+    pub fn size(&self) -> RectSize {
+        self.rect_view.size()
+    }
+
+    pub fn set_size(&mut self, size: impl Into<RectSize>) {
+        self.rect_view.set_size(size);
+        self.relayout_text();
+        self.needs_update_bounds = true;
+    }
+
+    pub fn with_size(mut self, size: impl Into<RectSize>) -> Self {
+        self.set_size(size);
+        self
+    }
+
+    pub fn style(&self) -> ButtonStyle {
+        self.style
+    }
+
+    pub fn set_style(&mut self, style: ButtonStyle) {
+        self.style = style;
+        self.update_styles();
+    }
+
+    pub fn set_title(&mut self, title: String) {
+        self.text_view.set_text(title);
+        self.relayout_text();
+    }
+
+    pub fn state(&self) -> ButtonState {
+        self.dispatch.state()
+    }
+
+    fn update_styles(&mut self) {
+        let style = self.style();
+        let state_style = style.state_style_for(self.state());
+        self.rect_view.set_fill_color(state_style.fill_color);
+        self.rect_view.set_line_color(state_style.line_color);
+        self.rect_view.set_line_width(style.line_width);
+        if self.text_view.font_size() != style.font_size {
+            self.relayout_text();
+        }
+        self.text_view.set_font_size(style.font_size);
+        self.text_view.set_fg_color(state_style.text_color);
+        self.text_view.set_bg_color(Srgba::from_hex(0x00000000));
+    }
+
+    fn relayout_text(&mut self) {
+        let text_size = self.text_view.size();
+        let rect_bounds = self.rect_view.bounds();
+        let origin = point2(
+            rect_bounds.x_min() + 0.5 * (rect_bounds.width() - text_size.width),
+            rect_bounds.y_min() + 0.5 * (rect_bounds.height() - text_size.height),
+        );
+        self.text_view.set_bounds_(Bounds {
+            origin,
+            size: text_size,
+        });
+    }
+}
+
+impl<'cx, UiState: 'cx> View<UiState> for ButtonView<'cx, UiState> {
+    fn preferred_size(&self) -> RectSize {
+        self.size()
+    }
+
+    fn set_bounds(&mut self, bounds: Bounds) {
+        // Assuming text is single-line.
+        self.rect_view.set_bounds_(bounds);
+        self.relayout_text();
+        self.needs_update_bounds = true;
+    }
+
+    fn prepare_for_drawing(
+        &mut self,
+        view_context: &ViewContext<UiState>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        canvas: &crate::wgpu_utils::CanvasView,
+    ) {
+        let state_updated = self
+            .dispatch
+            .state_updated
+            .fetch_and(false, atomic::Ordering::AcqRel);
+        if state_updated {
+            self.update_styles();
+        }
+        if self.needs_update_bounds {
+            self.listener_handle.update_bounds(self.rect_view.bounds());
+        }
+        self.rect_view
+            .prepare_for_drawing(view_context, device, queue, canvas);
+        self.text_view
+            .prepare_for_drawing(view_context, device, queue, canvas);
+    }
+
+    fn draw(&self, view_context: &ViewContext<UiState>, render_pass: &mut wgpu::RenderPass) {
+        self.rect_view.draw(view_context, render_pass);
+        self.text_view.draw(view_context, render_pass);
+    }
+}
+
+struct ButtonDispatch<'cx, UiState> {
+    state: AtomicButtonState,
+    /// Flag for when GPU-side things needs updating after something has changed.
+    state_updated: AtomicBool,
+    callback: Option<ButtonCallback<'cx, UiState>>,
+}
+
+impl<'cx, UiState> ButtonDispatch<'cx, UiState> {
+    pub fn state(&self) -> ButtonState {
+        self.state.load(atomic::Ordering::Acquire)
+    }
+}
+
+impl<'cx, UiState> MouseEventListener<UiState> for Arc<ButtonDispatch<'cx, UiState>> {
+    fn mouse_event(&self, event: MouseEvent, ui_state: &mut UiState) {
+        let old_state = self.state();
+        use ButtonState::*;
+        use MouseEventKind::*;
+        let new_state = match event.kind {
+            HoveringStart if old_state == Idle => Hovered,
+            HoveringStart if old_state == PressedOutside => Pressed,
+            HoveringFinish if old_state == Hovered => Idle,
+            HoveringFinish if old_state == Pressed => PressedOutside,
+            ButtonDown {
+                button: MouseButton::Left,
+            } => Pressed,
+            ButtonUp {
+                button: MouseButton::Left,
+                inside: true,
+            } => Hovered,
+            ButtonUp {
+                button: MouseButton::Left,
+                inside: false,
+            } => Idle,
+            _ => old_state,
+        };
+        self.state.store(new_state, atomic::Ordering::Release);
+        self.state_updated.store(true, atomic::Ordering::Release);
+        if let Some(callback) = self.callback.as_ref() {
+            callback(ui_state, event)
+        }
+    }
+}

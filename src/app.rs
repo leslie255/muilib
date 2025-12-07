@@ -12,8 +12,9 @@ use crate::{
     element::{Bounds, RectSize},
     mouse_event::MouseEventRouter,
     resources::AppResources,
+    theme::{ButtonKind, Theme},
     utils::*,
-    view::{HStack, RectView, TextView, View, ViewContext},
+    view::{ButtonView, HStack, RectView, TextView, View, ViewContext},
     wgpu_utils::{Canvas as _, CanvasView, Srgb, WindowCanvas},
 };
 
@@ -104,6 +105,8 @@ struct UiState<'cx> {
     view_context: ViewContext<'cx, Self>,
     rect_views: Vec<RectView>,
     text_view: TextView,
+    button_view: ButtonView<'cx, Self>,
+    hstack: HStack,
 }
 
 impl<'cx> UiState<'cx> {
@@ -153,6 +156,19 @@ impl<'cx> UiState<'cx> {
             .with_fg_color(Srgb::from_hex(0x808080));
         text_view.set_text(String::from("Hello, World"));
 
+        let mut button_view = ButtonView::new(
+            &view_context,
+            Theme::DEFAULT
+                .button_style(ButtonKind::Mundane)
+                .with_font_size(24.)
+                .with_line_width(4.),
+            Some(Box::new(|_self, event| {
+                log::debug!("event received from button: {event:?}")
+            })),
+        )
+        .with_size(RectSize::new(128., 48.));
+        button_view.set_title(String::from("Button"));
+
         let mut self_ = Self {
             resources,
             device,
@@ -162,6 +178,8 @@ impl<'cx> UiState<'cx> {
             view_context,
             rect_views,
             text_view,
+            button_view,
+            hstack: the_default(),
         };
         self_.window_resized();
         self_
@@ -186,12 +204,12 @@ impl<'cx> UiState<'cx> {
             ..the_default()
         });
 
-        let mut hstack = HStack::default();
-        let hstack_view = hstack.add_subviews(|subviews| {
+        let hstack_view = self.hstack.add_subviews(|subviews| {
             for rect_view in &mut self.rect_views {
                 subviews.add(rect_view);
             }
             subviews.add(&mut self.text_view);
+            subviews.add(&mut self.button_view);
         });
         hstack_view.finish();
         hstack_view.set_bounds(canvas.bounds().with_padding(20.));

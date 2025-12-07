@@ -87,7 +87,7 @@ impl<'cx, UiState> MouseEventRouter<'cx, UiState> {
             object: Box::new(listener),
         }));
         ListenerHandle {
-            router_inner: Arc::downgrade(self),
+            router: Arc::downgrade(self),
             index,
         }
     }
@@ -95,6 +95,11 @@ impl<'cx, UiState> MouseEventRouter<'cx, UiState> {
     fn unregister_listener(&self, index: usize) {
         let mut listeners = self.listeners.lock().unwrap();
         listeners[index] = None;
+    }
+
+    fn update_bounds(&self, index: usize, bounds: Bounds) {
+        let mut listeners = self.listeners.lock().unwrap();
+        listeners[index].as_mut().unwrap().bounds = bounds;
     }
 
     fn listeners_iter_mut<'a>(
@@ -242,14 +247,14 @@ struct Listener<'cx, UiState> {
 
 /// Unregisters the listener when dropped.
 pub struct ListenerHandle<'cx, UiState> {
-    router_inner: Weak<MouseEventRouter<'cx, UiState>>,
+    router: Weak<MouseEventRouter<'cx, UiState>>,
     index: usize,
 }
 
 impl<'cx, UiState> Clone for ListenerHandle<'cx, UiState> {
     fn clone(&self) -> Self {
         Self {
-            router_inner: self.router_inner.clone(),
+            router: self.router.clone(),
             index: self.index,
         }
     }
@@ -265,9 +270,19 @@ impl<UiState> Debug for ListenerHandle<'_, UiState> {
 
 impl<UiState> Drop for ListenerHandle<'_, UiState> {
     fn drop(&mut self) {
-        let Some(router_inner) = self.router_inner.upgrade() else {
+        let Some(router) = self.router.upgrade() else {
             return;
         };
-        router_inner.unregister_listener(self.index);
+        router.unregister_listener(self.index);
     }
 }
+
+impl<'cx, UiState> ListenerHandle<'cx, UiState> {
+    pub fn update_bounds(&self, bounds: Bounds) {
+        let Some(router) = self.router.upgrade() else {
+            return;
+        };
+        router.update_bounds(self.index, bounds);
+    }
+}
+

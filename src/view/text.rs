@@ -83,27 +83,46 @@ impl TextView {
                     n_columns = 0;
                 }
                 '\r' => {
-                    n_columns = 0;
                     self.n_columns = self.n_columns.max(n_columns);
+                    n_columns = 0;
                 }
-                _ => n_columns += 1,
+                _ => {
+                    n_columns += 1;
+                    self.n_columns = self.n_columns.max(n_columns)
+                }
             }
         }
         self.text = text;
+    }
+
+    pub fn n_columns(&self) -> usize {
+        self.n_columns
+    }
+
+    pub fn n_lines(&self) -> usize {
+        self.n_lines
+    }
+
+    pub fn size(&self) -> RectSize {
+        RectSize::new(
+            (self.n_columns as f32) * self.relative_font_width * self.font_size(),
+            self.n_lines as f32 * self.font_size(),
+        )
+    }
+
+    pub fn set_bounds_(&mut self, bounds: Bounds) {
+        self.needs_update = true;
+        self.origin = bounds.origin;
     }
 }
 
 impl<UiState> View<UiState> for TextView {
     fn preferred_size(&self) -> RectSize {
-        RectSize::new(
-            (self.n_columns as f32) * self.relative_font_width,
-            self.n_lines as f32,
-        )
+        self.size()
     }
 
     fn set_bounds(&mut self, bounds: Bounds) {
-        self.needs_update = true;
-        self.origin = bounds.origin;
+        self.set_bounds_(bounds);
     }
 
     fn prepare_for_drawing(

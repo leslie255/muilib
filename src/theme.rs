@@ -57,26 +57,22 @@ impl Theme {
         button_styles: [
             // Normal.
             ButtonStyle {
+                line_width: LineWidth::Uniform(2.),
+                font_size: 12.,
                 // Idle.
                 idle_style: ButtonStateStyle {
-                    line_width: LineWidth::Uniform(2.),
-                    font_size: 12.,
                     text_color: Srgb::from_hex(0xFFFFFF),
                     fill_color: Srgb::from_hex(0x2A2A2A),
                     line_color: Srgb::from_hex(0x494949),
                 },
                 // Hovered.
                 hovered_style: ButtonStateStyle {
-                    line_width: LineWidth::Uniform(2.),
-                    font_size: 12.,
                     text_color: Srgb::from_hex(0xFFFFFF),
                     fill_color: Srgb::from_hex(0x424242),
                     line_color: Srgb::from_hex(0xA2A2A2),
                 },
                 // Pressed.
                 pressed_style: ButtonStateStyle {
-                    line_width: LineWidth::Uniform(2.),
-                    font_size: 12.,
                     text_color: Srgb::from_hex(0xFFFFFF),
                     fill_color: Srgb::from_hex(0xA2A2A2),
                     line_color: Srgb::from_hex(0xA2A2A2),
@@ -84,26 +80,22 @@ impl Theme {
             },
             // Primary.
             ButtonStyle {
+                line_width: LineWidth::Uniform(2.),
+                font_size: 12.,
                 // Idle.
                 idle_style: ButtonStateStyle {
-                    line_width: LineWidth::Uniform(2.),
-                    font_size: 12.,
                     text_color: Srgb::from_hex(0xFFFFFF),
                     fill_color: Srgb::from_hex(0x2C3F71),
                     line_color: Srgb::from_hex(0x3D5B9B),
                 },
                 // Hovered.
                 hovered_style: ButtonStateStyle {
-                    line_width: LineWidth::Uniform(2.),
-                    font_size: 12.,
                     text_color: Srgb::from_hex(0xFFFFFF),
                     fill_color: Srgb::from_hex(0x5771B2),
                     line_color: Srgb::from_hex(0x95A0BD),
                 },
                 // Pressed.
                 pressed_style: ButtonStateStyle {
-                    line_width: LineWidth::Uniform(2.),
-                    font_size: 12.,
                     text_color: Srgb::from_hex(0xFFFFFF),
                     fill_color: Srgb::from_hex(0x95A0BD),
                     line_color: Srgb::from_hex(0x95A0BD),
@@ -111,26 +103,22 @@ impl Theme {
             },
             // Toxic.
             ButtonStyle {
+                line_width: LineWidth::Uniform(2.),
+                font_size: 12.,
                 // Idle.
                 idle_style: ButtonStateStyle {
-                    line_width: LineWidth::Uniform(2.),
-                    font_size: 12.,
                     text_color: Srgb::from_hex(0xFFFFFF),
                     fill_color: Srgb::from_hex(0x952727),
                     line_color: Srgb::from_hex(0xC83F3F),
                 },
                 // Hovered.
                 hovered_style: ButtonStateStyle {
-                    line_width: LineWidth::Uniform(2.),
-                    font_size: 12.,
                     text_color: Srgb::from_hex(0xFFFFFF),
                     fill_color: Srgb::from_hex(0xFF776C),
                     line_color: Srgb::from_hex(0xFFD0CE),
                 },
                 // Pressed.
                 pressed_style: ButtonStateStyle {
-                    line_width: LineWidth::Uniform(2.),
-                    font_size: 12.,
                     text_color: Srgb::from_hex(0xFFFFFF),
                     fill_color: Srgb::from_hex(0xFFD0CE),
                     line_color: Srgb::from_hex(0xFFD0CE),

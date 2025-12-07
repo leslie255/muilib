@@ -86,6 +86,15 @@ impl RectView {
         with_param: with_size,
         param_mut_preamble: |self_: &mut Self| self_.needs_update = true,
     }
+
+    pub fn bounds(&self) -> Bounds {
+        self.bounds
+    }
+
+    pub fn set_bounds_(&mut self, bounds: Bounds) {
+        self.bounds = bounds;
+        self.needs_update = true;
+    }
 }
 
 impl<UiState> View<UiState> for RectView {
@@ -94,8 +103,7 @@ impl<UiState> View<UiState> for RectView {
     }
 
     fn set_bounds(&mut self, bounds: Bounds) {
-        self.bounds = bounds;
-        self.needs_update = true;
+        self.set_bounds_(bounds);
     }
 
     fn prepare_for_drawing(
