@@ -7,7 +7,7 @@ use cgmath::Point2;
 use derive_more::{Display, Error};
 
 use crate::{
-    element::{Bounds, Font, InstancedRectRenderer, RectRenderer, RectSize, TextRenderer},
+    element::{Bounds, Font, ImageRenderer, InstancedRectRenderer, RectRenderer, RectSize, TextRenderer},
     mouse_event::MouseEventRouter,
     resources::{AppResources, LoadResourceError},
     view::View,
@@ -21,6 +21,7 @@ pub struct ViewContext<'cx, UiState> {
     rect_renderer: RectRenderer<'cx>,
     instanced_rect_renderer: InstancedRectRenderer<'cx>,
     text_renderer: TextRenderer<'cx>,
+    image_renderer: ImageRenderer<'cx>,
     mouse_event_router: Arc<MouseEventRouter<'cx, UiState>>,
 }
 
@@ -51,15 +52,24 @@ impl<'cx, UiState> ViewContext<'cx, UiState> {
             RectRenderer::create(device, resources, canvas_format)
         );
         let instanced_rect_renderer = try_!(
-            ViewContextCreationStage::InstancedRectRenderer,
+            ViewContextCreationStage::InstancedRectRendererCreation,
             InstancedRectRenderer::create(device, resources, canvas_format),
+        );
+        let image_renderer = try_!(
+            ViewContextCreationStage::ImageRendererCreation,
+            ImageRenderer::create(device, resources, canvas_format),
         );
         Ok(Self {
             rect_renderer,
             instanced_rect_renderer,
             text_renderer,
+            image_renderer,
             mouse_event_router,
         })
+    }
+
+    pub fn image_renderer(&self) -> &ImageRenderer<'cx> {
+        &self.image_renderer
     }
 }
 
@@ -89,11 +99,13 @@ pub enum ViewContextCreationStage {
     #[display("creating the rect renderer")]
     RectRendererCreation,
     #[display("creating the instanced rect renderer")]
-    InstancedRectRenderer,
+    InstancedRectRendererCreation,
     #[display("loading the font")]
     FontLoading,
     #[display("creating the text renderer")]
     TextRendererCreation,
+    #[display("creating the image renderer")]
+    ImageRendererCreation,
 }
 
 impl Display for ViewContextCreationError {

@@ -9,6 +9,7 @@ mod stack;
 mod text;
 mod view_context;
 mod abstract_views;
+mod image;
 
 pub use button::*;
 pub use rect::*;
@@ -16,6 +17,7 @@ pub use stack::*;
 pub use text::*;
 pub use view_context::*;
 pub use abstract_views::*;
+pub use image::*;
 
 pub mod view_lists;
 

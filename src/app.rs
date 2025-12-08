@@ -11,15 +11,15 @@ use winit::{
 };
 
 use crate::{
-    element::{Bounds, RectSize},
+    element::{Bounds, ImageRef, RectSize, Texture2d},
     impl_view_list,
     mouse_event::MouseEventRouter,
     resources::AppResources,
     theme::{ButtonKind, Theme},
     utils::*,
     view::{
-        ButtonView, ControlFlow, HStackView, RectView, SpreadView, StackLayout, TextView,
-        VStackView, View, ViewContext, ViewList, view_lists::*,
+        ButtonView, ControlFlow, HStackView, ImageView, RectView, SpreadView, StackLayout,
+        TextView, VStackView, View, ViewContext, ViewList, view_lists::*,
     },
     wgpu_utils::{Canvas as _, CanvasView, Srgb, Srgba, WindowCanvas},
 };
@@ -153,6 +153,7 @@ impl<'cx> HStack0<'cx> {
 }
 
 struct HStack2<'cx> {
+    image_view: ImageView,
     button_view: ButtonView<'cx, UiState<'cx>>,
     text_view: TextView,
 }
@@ -160,18 +161,19 @@ impl<'cx> ViewList<'cx> for HStack2<'cx> {
     type UiState = UiState<'cx>;
     impl_view_list! {
         'cx,
+        image_view,
         button_view,
         text_view,
     }
 }
 
 impl<'cx> HStack2<'cx> {
-    pub fn new(view_context: &ViewContext<'cx, UiState<'cx>>) -> HStackView<'cx, Self> {
+    pub fn new(
+        view_context: &ViewContext<'cx, UiState<'cx>>,
+        texture: Texture2d,
+    ) -> HStackView<'cx, Self> {
         HStackView::new(Self {
-            text_view: TextView::new(view_context)
-                .with_font_size(32.)
-                .with_fg_color(Srgb::from_hex(0xFFFFFF))
-                .with_bg_color(Srgb::from_hex(0x308050)),
+            image_view: ImageView::new(texture).with_size(RectSize::new(28., 28.)),
             button_view: {
                 let mut button_view = ButtonView::new(
                     view_context,
@@ -190,6 +192,10 @@ impl<'cx> HStack2<'cx> {
                 button_view.set_title(String::from("-1"));
                 button_view
             },
+            text_view: TextView::new(view_context)
+                .with_font_size(48.)
+                .with_fg_color(Srgb::from_hex(0xFFFFFF))
+                .with_bg_color(Srgb::from_hex(0x308050)),
         })
         .with_inter_padding(10.)
     }
@@ -251,6 +257,15 @@ impl<'cx> UiState<'cx> {
         )
         .unwrap_or_else(|e| panic!("{e}"));
 
+        let image = resources.load_image("images/pfp.png").unwrap();
+        let image_ref = ImageRef {
+            width: image.width(),
+            height: image.height(),
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            data: image.as_ref(),
+        };
+        let texture = Texture2d::create(&device, &queue, image_ref);
+
         let mut self_ = Self {
             resources,
             device,
@@ -269,7 +284,7 @@ impl<'cx> UiState<'cx> {
                             .with_bg_color(Srgba::from_hex(0x00000000))
                             .with_fg_color(Srgb::from_hex(0xFFFFFF)),
                     ))),
-                    SpreadView::horizontal(HStack2::new(&view_context)),
+                    SpreadView::horizontal(HStack2::new(&view_context, texture)),
                 ))
                 .with_layout(StackLayout::EqualSpacing),
             ),
