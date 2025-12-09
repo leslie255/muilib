@@ -16,29 +16,16 @@ pub struct ImageView {
     raw: Option<ImageElement>,
 }
 
-impl Default for ImageView {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ImageView {
-    pub fn new() -> Self {
+    pub fn new(size: RectSize<f32>) -> Self {
         Self {
-            size: RectSize::new(100., 100.),
+            size,
             bounds: the_default(),
             bounds_updated: false,
             texture: None,
             texture_updated: false,
             raw: None,
         }
-    }
-
-    pub fn new_with_texture(texture: Texture2d) -> Self {
-        let mut self_ = Self::new();
-        self_.set_texture(texture);
-        self_.resize_to_fit();
-        self_
     }
 
     param_getters_setters! {
@@ -75,6 +62,11 @@ impl ImageView {
             self.set_size(texture.size());
         }
     }
+
+    pub fn apply_bounds_(&mut self, bounds: Bounds<f32>) {
+        self.bounds = bounds;
+        self.bounds_updated = true
+    }
 }
 
 impl<UiState> View<'_, UiState> for ImageView {
@@ -83,8 +75,7 @@ impl<UiState> View<'_, UiState> for ImageView {
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        self.bounds = bounds;
-        self.bounds_updated = true
+        self.apply_bounds_(bounds);
     }
 
     fn prepare_for_drawing(

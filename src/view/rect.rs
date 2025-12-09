@@ -93,7 +93,7 @@ impl RectView {
         self.bounds
     }
 
-    pub fn set_bounds_(&mut self, bounds: Bounds<f32>) {
+    pub fn apply_bounds_(&mut self, bounds: Bounds<f32>) {
         self.bounds = bounds;
         self.needs_update = true;
     }
@@ -105,7 +105,7 @@ impl<UiState> View<'_, UiState> for RectView {
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        self.set_bounds_(bounds);
+        self.apply_bounds_(bounds);
     }
 
     fn prepare_for_drawing(

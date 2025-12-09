@@ -3,7 +3,8 @@ use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use crate::{
     element::{Bounds, RectSize},
     param_getters_setters,
-    view::View, wgpu_utils::CanvasView,
+    view::View,
+    wgpu_utils::CanvasView,
 };
 
 use super::UiContext;
@@ -53,6 +54,7 @@ impl<UiState> View<'_, UiState> for SpacerView {
 pub enum SpreadAxis {
     Horizontal,
     Vertical,
+    Both,
 }
 
 /// Makes the view take as much space as possible in one axis.
@@ -71,10 +73,12 @@ where
     Subview: View<'cx, UiState>,
 {
     fn preferred_size(&mut self) -> RectSize<f32> {
+        log::debug!("[SpreadView::preferred_size]");
         let subview_size = self.subview.preferred_size();
         match self.axis {
             SpreadAxis::Horizontal => RectSize::new(f32::INFINITY, subview_size.height),
             SpreadAxis::Vertical => RectSize::new(subview_size.width, f32::INFINITY),
+            SpreadAxis::Both => RectSize::new(f32::INFINITY, f32::INFINITY),
         }
     }
 
@@ -114,6 +118,10 @@ impl<Subview> SpreadView<Subview> {
         Self::new(SpreadAxis::Vertical, subview)
     }
 
+    pub fn both(subview: Subview) -> Self {
+        Self::new(SpreadAxis::Both, subview)
+    }
+
     param_getters_setters! {
         vis: pub,
         param_ty: SpreadAxis,
@@ -124,11 +132,82 @@ impl<Subview> SpreadView<Subview> {
         param_mut_preamble: |_: &mut Self| {},
     }
 
-    pub fn subview(&self) -> &Subview {
+    pub fn into_subview(self) -> Subview {
+        self.subview
+    }
+
+    pub const fn subview(&self) -> &Subview {
         &self.subview
     }
 
-    pub fn subview_mut(&mut self) -> &mut Subview {
+    pub const fn subview_mut(&mut self) -> &mut Subview {
         &mut self.subview
+    }
+}
+
+/// View that centers a subview within its bounds.
+#[derive(Debug, Clone, Copy, PartialEq, AsRef, AsMut, Deref, DerefMut)]
+pub struct CenteredView<Subview> {
+    size: RectSize<f32>,
+    #[as_ref]
+    #[as_mut]
+    #[deref]
+    #[deref_mut]
+    subview: Subview,
+}
+
+impl<Subview> CenteredView<Subview> {
+    pub const fn new(size: RectSize<f32>, subview: Subview) -> Self {
+        Self { size, subview }
+    }
+
+    param_getters_setters! {
+        vis: pub,
+        param_ty: RectSize<f32>,
+        param: size,
+        param_mut: size_mut,
+        set_param: set_size,
+        with_param: with_size,
+        param_mut_preamble: |_: &mut Self| {},
+    }
+
+    pub fn into_subview(self) -> Subview {
+        self.subview
+    }
+
+    pub const fn subview(&self) -> &Subview {
+        &self.subview
+    }
+
+    pub const fn subview_mut(&mut self) -> &mut Subview {
+        &mut self.subview
+    }
+}
+
+impl<'cx, UiState, Subview> View<'cx, UiState> for CenteredView<Subview>
+where
+    Subview: View<'cx, UiState>,
+{
+    fn preferred_size(&mut self) -> RectSize<f32> {
+        self.subview.preferred_size().max(self.size)
+    }
+
+    fn apply_bounds(&mut self, bounds: Bounds<f32>) {
+        self.subview.apply_bounds(bounds)
+    }
+
+    fn prepare_for_drawing(
+        &mut self,
+        ui_context: &UiContext<'cx, UiState>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        canvas: &CanvasView,
+    ) {
+        self.subview
+            .prepare_for_drawing(ui_context, device, queue, canvas)
+    }
+
+    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut wgpu::RenderPass) {
+        self.subview.draw(ui_context, render_pass);
     }
 }

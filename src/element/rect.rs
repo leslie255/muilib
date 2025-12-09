@@ -1,3 +1,5 @@
+use std::fmt::{self, Debug};
+
 use cgmath::*;
 use derive_more::From;
 
@@ -7,11 +9,22 @@ use crate::{
     wgpu_utils::{AsBindGroup, CanvasFormat, Rgba, UniformBuffer},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct Bounds<T: Copy> {
     pub origin: Point2<T>,
     pub size: RectSize<T>,
+}
+
+impl<T: Copy + Debug> Debug for Bounds<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Bounds")
+            .field("x_min", &self.x_min())
+            .field("y_min", &self.y_min())
+            .field("width", &self.width())
+            .field("height", &self.height())
+            .finish()
+    }
 }
 
 impl<T: Copy> Default for Bounds<T>
@@ -120,8 +133,26 @@ impl<T: Copy> RectSize<T> {
         Self { width, height }
     }
 
-    pub fn as_vec(self) -> Vector2<T> {
+    pub const fn as_vec(self) -> Vector2<T> {
         vec2(self.width, self.height)
+    }
+}
+
+impl RectSize<f32> {
+    /// `min` per-axis.
+    pub fn min(self, other: Self) -> Self {
+        Self {
+            width: self.width.min(other.width),
+            height: self.height.min(other.height),
+        }
+    }
+
+    /// `min` per-axis.
+    pub fn max(self, other: Self) -> Self {
+        Self {
+            width: self.width.max(other.width),
+            height: self.height.max(other.height),
+        }
     }
 }
 

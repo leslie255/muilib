@@ -5,273 +5,178 @@ use cgmath::*;
 use crate::{
     element::{Bounds, RectSize},
     param_getters_setters,
-    view::{ControlFlow, UiContext, View, ViewList}, wgpu_utils::CanvasView,
+    view::{Axis, Point2Ext as _, RectView, View, ViewList},
+    wgpu_utils::{CanvasView, Rgba},
 };
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StackLayout {
-    #[default]
-    PackCenter,
-    PackLeading,
-    PackTrailing,
-    EqualSpacing,
+use super::{ControlFlow, UiContext};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StackPaddingType {
+    /// Pad only between the subviews.
+    Interpadded,
+    /// Pad between the subviews, before the first subview, and after the last subview.
+    Omnipadded,
 }
 
-pub struct HStackView<'cx, Subviews: ViewList<'cx>> {
+pub struct StackView<'cx, Subviews: ViewList<'cx>> {
+    axis: Axis,
     subviews: Subviews,
-    size: RectSize<f32>,
+    background_view: Option<RectView>,
+    padding_type: StackPaddingType,
+    fixed_padding: Option<f32>,
     subview_sizes: Vec<RectSize<f32>>,
-    inter_padding: f32,
-    layout: StackLayout,
+    subview_length_alpha_total: f32,
     _marker: PhantomData<&'cx ()>,
 }
 
-impl<'cx, Subviews: ViewList<'cx>> HStackView<'cx, Subviews> {
-    pub fn new(subviews: Subviews) -> Self {
+impl<'cx, Subviews: ViewList<'cx>> StackView<'cx, Subviews> {
+    pub const fn new(axis: Axis, subviews: Subviews) -> Self {
         Self {
+            axis,
             subviews,
-            size: RectSize::new(0., 0.),
+            background_view: None,
+            padding_type: StackPaddingType::Interpadded,
+            fixed_padding: None,
             subview_sizes: Vec::new(),
-            inter_padding: 0.0f32,
-            layout: StackLayout::PackCenter,
+            subview_length_alpha_total: 0.0f32,
             _marker: PhantomData,
         }
     }
 
+    pub const fn horizontal(subviews: Subviews) -> Self {
+        Self::new(Axis::Horizontal, subviews)
+    }
+
+    pub const fn vertical(subviews: Subviews) -> Self {
+        Self::new(Axis::Vertical, subviews)
+    }
+
     param_getters_setters! {
         vis: pub,
-        param_ty: f32,
-        param: inter_padding,
-        param_mut: inter_padding_mut,
-        set_param: set_inter_padding,
-        with_param: with_inter_padding,
+        param_ty: Axis,
+        param: axis,
+        param_mut: axis_mut,
+        set_param: set_axis,
+        with_param: with_axis,
         param_mut_preamble: |_: &mut Self| (),
     }
 
     param_getters_setters! {
         vis: pub,
-        param_ty: StackLayout,
-        param: layout,
-        param_mut: layout_mut,
-        set_param: set_layout,
-        with_param: with_layout,
+        param_ty: StackPaddingType,
+        param: padding_type,
+        param_mut: padding_type_mut,
+        set_param: set_padding_type,
+        with_param: with_padding_type,
         param_mut_preamble: |_: &mut Self| (),
     }
 
-    pub fn subviews(&self) -> &Subviews {
-        &self.subviews
+    param_getters_setters! {
+        vis: pub,
+        param_ty: Option<f32>,
+        param: fixed_padding,
+        param_mut: fixed_padding_mut,
+        set_param: set_fixed_padding,
+        with_param: with_fixed_padding,
+        param_mut_preamble: |_: &mut Self| (),
     }
 
-    pub fn subviews_mut(&mut self) -> &mut Subviews {
-        &mut self.subviews
+    pub fn background_color(&self) -> Rgba {
+        self.background_view
+            .as_ref()
+            .map_or(Rgba::from_hex(0), |background_view| {
+                background_view.fill_color()
+            })
     }
 
-    fn inter_space(&self, bounds: Bounds<f32>) -> f32 {
-        match self.layout {
-            StackLayout::EqualSpacing => {
-                (bounds.width() - self.size.width) / ((self.subview_sizes.len() + 1) as f32)
-            }
-            StackLayout::PackCenter | StackLayout::PackLeading | StackLayout::PackTrailing => {
-                self.inter_padding
-            }
+    pub fn set_background_color(&mut self, background_color: impl Into<Rgba>) {
+        let background_color: Rgba = background_color.into();
+        if background_color.a == 0. {
+            return;
         }
+        let background_view = self
+            .background_view
+            .get_or_insert_with(|| RectView::new(RectSize::new(0., 0.)));
+        background_view.set_fill_color(background_color);
     }
 
-    fn initial_offset(&self, bounds: Bounds<f32>) -> f32 {
-        match self.layout {
-            StackLayout::PackCenter => bounds.x_min() + 0.5 * (bounds.width() - self.size.width),
-            StackLayout::PackLeading => bounds.x_min(),
-            StackLayout::PackTrailing => bounds.x_max() - self.size.width,
-            StackLayout::EqualSpacing => self.inter_space(bounds),
-        }
+    pub fn with_background_color(mut self, background_color: impl Into<Rgba>) -> Self {
+        self.set_background_color(background_color);
+        self
+    }
+
+    fn warn_n_subviews_changed() {
+        log::warn!(
+            "`StackView::apply_bounds` called, but number of subviews have changed since `StackView::preferred_size`"
+        );
     }
 }
 
-impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for HStackView<'cx, Subviews> {
+impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for StackView<'cx, Subviews> {
     fn preferred_size(&mut self) -> RectSize<f32> {
-        let mut size = RectSize::new(0.0f32, 0.);
+        let mut length_alpha = 0.0f32;
+        let mut length_beta = 0.0f32;
         self.subview_sizes.clear();
         self.subviews.for_each_subview_mut(|subview| {
             let subview_size = subview.preferred_size();
-            size.height = size.height.max(subview_size.height);
-            size.width += subview_size.width;
             self.subview_sizes.push(subview_size);
+            length_alpha += subview_size.length_alpha(self.axis);
+            length_beta = length_beta.max(subview_size.length_alpha(self.axis));
             ControlFlow::Continue
         });
-        if self.layout != StackLayout::EqualSpacing && self.subview_sizes.len() >= 2 {
-            size.width += self.inter_padding * ((self.subview_sizes.len() - 1) as f32);
-        }
-        self.size = size;
-        RectSize::new(size.width, size.height)
+        let n_subviews = self.subview_sizes.len();
+        let n_paddings = match self.padding_type() {
+            StackPaddingType::Interpadded => n_subviews.saturating_sub(1),
+            StackPaddingType::Omnipadded => n_subviews + 1,
+        };
+        self.subview_length_alpha_total = length_alpha;
+        let padding_total = (n_paddings as f32) * self.fixed_padding.unwrap_or(0.);
+        length_alpha += padding_total;
+        RectSize::new_on_axis(self.axis, length_alpha, length_beta)
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
+        if let Some(background_view) = self.background_view.as_mut() {
+            background_view.apply_bounds_(bounds);
+        }
         let mut subview_sizes = self.subview_sizes.iter();
-        let inter_space = self.inter_space(bounds);
-        let mut offset_counter = self.initial_offset(bounds);
+        let n_subviews = self.subview_sizes.len();
+        let n_paddings = match self.padding_type {
+            StackPaddingType::Interpadded => n_subviews.saturating_sub(1),
+            StackPaddingType::Omnipadded => n_subviews + 1,
+        };
+        let padding = match self.fixed_padding {
+            Some(fixed_padding) => fixed_padding,
+            None => {
+                (bounds.length_alpha(self.axis) - self.subview_length_alpha_total)
+                    / (n_paddings as f32)
+            }
+        };
+        let mut offset_alpha = match self.padding_type {
+            StackPaddingType::Interpadded => bounds.alpha_min(self.axis) + 0.,
+            StackPaddingType::Omnipadded => bounds.alpha_min(self.axis) + padding,
+        };
         self.subviews.for_each_subview_mut(|subview| {
             let Some(&requested_size) = subview_sizes.next() else {
-                log::warn!("`HStack::apply_bounds` encountered mismatched view list from the previous `preferred_size`");
+                Self::warn_n_subviews_changed();
                 return ControlFlow::Break;
             };
-            let availible_size = RectSize {
-                width: bounds.width() - offset_counter,
-                height: bounds.height(),
-            };
-            let subview_size = RectSize {
-                width: requested_size.width.min(availible_size.width),
-                height: requested_size.height.min(availible_size.height),
-            };
-            let top_padding = 0.5 * (bounds.height() - subview_size.height);
-            let bounds = Bounds::new(
-                point2(offset_counter, bounds.y_min() + top_padding),
+            let remaining_size = RectSize::new_on_axis(
+                self.axis, //
+                bounds.length_alpha(self.axis) - offset_alpha + bounds.alpha_min(self.axis),
+                bounds.length_beta(self.axis),
+            );
+            let subview_size = requested_size.min(remaining_size);
+            let offset_beta = bounds.beta_min(self.axis)
+                + 0.5 * (bounds.length_beta(self.axis) - subview_size.length_beta(self.axis));
+            let subview_bounds = Bounds::new(
+                Point2::new_on_axis(self.axis, offset_alpha, offset_beta),
                 subview_size,
             );
-            subview.apply_bounds(bounds);
-            offset_counter += subview_size.width;
-            offset_counter += inter_space;
-            ControlFlow::Continue
-        });
-    }
-
-    fn prepare_for_drawing<'a>(
-        &mut self,
-        ui_context: &'a UiContext<'cx, Subviews::UiState>,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        canvas: &CanvasView,
-    ) {
-        self.subviews.for_each_subview_mut(|subview| {
-            subview.prepare_for_drawing(ui_context, device, queue, canvas);
-            ControlFlow::Continue
-        });
-    }
-
-    fn draw(
-        &self,
-        ui_context: &UiContext<'cx, Subviews::UiState>,
-        render_pass: &mut wgpu::RenderPass,
-    ) {
-        self.subviews.for_each_subview(|subview| {
-            subview.draw(ui_context, render_pass);
-            ControlFlow::Continue
-        });
-    }
-}
-
-pub struct VStackView<'cx, Subviews: ViewList<'cx>> {
-    subviews: Subviews,
-    size: RectSize<f32>,
-    subview_sizes: Vec<RectSize<f32>>,
-    inter_padding: f32,
-    layout: StackLayout,
-    _marker: PhantomData<&'cx ()>,
-}
-
-impl<'cx, Subviews: ViewList<'cx>> VStackView<'cx, Subviews> {
-    pub fn new(subviews: Subviews) -> Self {
-        Self {
-            subviews,
-            size: RectSize::new(0., 0.),
-            subview_sizes: Vec::new(),
-            inter_padding: 0.0f32,
-            layout: StackLayout::PackCenter,
-            _marker: PhantomData,
-        }
-    }
-
-    param_getters_setters! {
-        vis: pub,
-        param_ty: f32,
-        param: inter_padding,
-        param_mut: inter_padding_mut,
-        set_param: set_inter_padding,
-        with_param: with_inter_padding,
-        param_mut_preamble: |_: &mut Self| (),
-    }
-
-    param_getters_setters! {
-        vis: pub,
-        param_ty: StackLayout,
-        param: layout,
-        param_mut: layout_mut,
-        set_param: set_layout,
-        with_param: with_layout,
-        param_mut_preamble: |_: &mut Self| (),
-    }
-
-    pub fn subviews(&self) -> &Subviews {
-        &self.subviews
-    }
-
-    pub fn subviews_mut(&mut self) -> &mut Subviews {
-        &mut self.subviews
-    }
-
-    fn inter_space(&self, bounds: Bounds<f32>) -> f32 {
-        match self.layout {
-            StackLayout::EqualSpacing => {
-                (bounds.height() - self.size.height) / ((self.subview_sizes.len() + 1) as f32)
-            }
-            StackLayout::PackCenter | StackLayout::PackLeading | StackLayout::PackTrailing => {
-                self.inter_padding
-            }
-        }
-    }
-
-    fn initial_offset(&self, bounds: Bounds<f32>) -> f32 {
-        match self.layout {
-            StackLayout::PackCenter => bounds.y_min() + 0.5 * (bounds.height() - self.size.height),
-            StackLayout::PackLeading => bounds.y_min(),
-            StackLayout::PackTrailing => bounds.y_max() - self.size.height,
-            StackLayout::EqualSpacing => self.inter_space(bounds),
-        }
-    }
-}
-
-impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for VStackView<'cx, Subviews> {
-    fn preferred_size(&mut self) -> RectSize<f32> {
-        let mut size = RectSize::new(0.0f32, 0.);
-        self.subview_sizes.clear();
-        self.subviews.for_each_subview_mut(|subview| {
-            let subview_size = subview.preferred_size();
-            size.width = size.width.max(subview_size.width);
-            size.height += subview_size.height;
-            self.subview_sizes.push(subview_size);
-            ControlFlow::Continue
-        });
-        if self.layout != StackLayout::EqualSpacing && self.subview_sizes.len() >= 2 {
-            size.height += self.inter_padding * ((self.subview_sizes.len() - 1) as f32);
-        }
-        self.size = size;
-        RectSize::new(size.width, size.height)
-    }
-
-    fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        let mut subview_sizes = self.subview_sizes.iter();
-        let inter_space = self.inter_space(bounds);
-        let mut offset_counter = self.initial_offset(bounds);
-        self.subviews.for_each_subview_mut(|subview| {
-            let Some(&requested_size) = subview_sizes.next() else {
-                log::warn!("`HStack::apply_bounds` encountered mismatched view list from the previous `preferred_size`");
-                return ControlFlow::Break;
-            };
-            let availible_size = RectSize {
-                width: bounds.width(),
-                height: bounds.height() - offset_counter,
-            };
-            let subview_size = RectSize {
-                width: requested_size.width.min(availible_size.width),
-                height: requested_size.height.min(availible_size.height),
-            };
-            let left_padding = 0.5 * (bounds.width() - subview_size.width);
-            let bounds = Bounds::new(
-                point2(bounds.x_min() + left_padding, offset_counter),
-                subview_size,
-            );
-            subview.apply_bounds(bounds);
-            offset_counter += requested_size.height;
-            offset_counter += inter_space;
+            subview.apply_bounds(subview_bounds);
+            offset_alpha += padding;
+            offset_alpha += subview_size.length_alpha(self.axis);
             ControlFlow::Continue
         });
     }
@@ -283,6 +188,11 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for VStackView<'
         queue: &wgpu::Queue,
         canvas: &CanvasView,
     ) {
+        if let Some(background_view) = self.background_view.as_mut()
+            && background_view.fill_color().a != 0.
+        {
+            background_view.prepare_for_drawing(ui_context, device, queue, canvas);
+        }
         self.subviews.for_each_subview_mut(|subview| {
             subview.prepare_for_drawing(ui_context, device, queue, canvas);
             ControlFlow::Continue
@@ -294,6 +204,11 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for VStackView<'
         ui_context: &UiContext<'cx, Subviews::UiState>,
         render_pass: &mut wgpu::RenderPass,
     ) {
+        if let Some(background_view) = self.background_view.as_ref()
+            && background_view.fill_color().a != 0.
+        {
+            background_view.draw(ui_context, render_pass);
+        }
         self.subviews.for_each_subview(|subview| {
             subview.draw(ui_context, render_pass);
             ControlFlow::Continue

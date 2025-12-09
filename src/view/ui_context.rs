@@ -7,7 +7,9 @@ use cgmath::Point2;
 use derive_more::{Display, Error};
 
 use crate::{
-    element::{Bounds, Font, ImageRenderer, InstancedRectRenderer, RectRenderer, RectSize, TextRenderer},
+    element::{
+        Bounds, Font, ImageRenderer, InstancedRectRenderer, RectRenderer, RectSize, TextRenderer,
+    },
     mouse_event::MouseEventRouter,
     resources::{AppResources, LoadResourceError},
     view::View,
@@ -139,18 +141,16 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         origin: Point2<f32>,
         view: &mut impl View<'cx, UiState>,
     ) -> Bounds<f32> {
-        let preferred_size = view.preferred_size();
+        let requested_size = view.preferred_size();
         let canvas_size = canvas.logical_size;
-        let remaining_size = RectSize {
+        let availible_size = RectSize {
             width: canvas_size.width - origin.x,
             height: canvas_size.height,
         };
-        let compromized_size = RectSize {
-            width: remaining_size.width.min(preferred_size.width),
-            height: remaining_size.height.min(preferred_size.height),
-        };
-        let bounds = Bounds::new(origin, compromized_size);
-        self.prepare_view_bounded(device, queue, canvas, bounds, view);
+        let subview_size = availible_size.min(requested_size);
+        let bounds = Bounds::new(origin, subview_size);
+        view.apply_bounds(bounds);
+        view.prepare_for_drawing(self, device, queue, canvas);
         bounds
     }
 
@@ -162,6 +162,7 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         bounds: Bounds<f32>,
         view: &mut impl View<'cx, UiState>,
     ) {
+        view.preferred_size();
         view.apply_bounds(bounds);
         view.prepare_for_drawing(self, device, queue, canvas);
     }

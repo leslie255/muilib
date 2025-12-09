@@ -247,8 +247,8 @@ impl<'cx, UiState> MouseEventRouter<'cx, UiState> {
         should_redraw
     }
 
-    pub fn set_bounds(&self, bounding_box: Bounds<f32>) {
-        *self.bounds.lock().unwrap() = bounding_box;
+    pub fn set_bounds(&self, bounds: Bounds<f32>) {
+        *self.bounds.lock().unwrap() = bounds;
     }
 
     pub fn get_bounds(&self) -> Bounds<f32> {

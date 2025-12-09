@@ -55,15 +55,10 @@ impl<'cx> Font<'cx> {
             glyphs_per_line: font_meta.glyphs_per_line,
             glyph_size: RectSize::new(font_meta.glyph_width, font_meta.glyph_height),
             glyph_size_uv: RectSize::new(
-                font_meta.glyph_width as f32 / atlas_image.width() as f32,
-                font_meta.glyph_height as f32 / atlas_image.height() as f32,
+                font_meta.glyph_width as f32 / atlas_image.width_f(),
+                font_meta.glyph_height as f32 / atlas_image.height_f(),
             ),
-            atlas_image: ImageRef {
-                width: atlas_image.width(),
-                height: atlas_image.height(),
-                format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                data: atlas_image.as_ref(),
-            },
+            atlas_image,
         })
     }
 
@@ -281,18 +276,13 @@ impl<'cx> TextRenderer<'cx> {
         let texture = Texture2d::create(device, queue, font.atlas_image);
         let texture_view = texture.wgpu_texture_view().clone();
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: None,
             address_mode_u: wgpu::AddressMode::Repeat,
             address_mode_v: wgpu::AddressMode::Repeat,
             address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 0.0,
-            compare: None,
-            anisotropy_clamp: 1,
-            border_color: None,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..the_default()
         });
 
         // Vertex buffer.

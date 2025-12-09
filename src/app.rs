@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::SystemTime};
+use std::sync::Arc;
 
 use cgmath::*;
 use pollster::FutureExt as _;
@@ -11,17 +11,16 @@ use winit::{
 };
 
 use crate::{
-    element::{Bounds, ImageRef, RectSize, Texture2d},
-    impl_view_list,
+    element::{Bounds, RectSize, Texture2d},
     mouse_event::MouseEventRouter,
     resources::AppResources,
     theme::{ButtonKind, Theme},
     utils::*,
     view::{
-        ButtonEvent, ButtonView, HStackView, ImageView, RectView, SpreadView,
-        StackLayout, TextView, UiContext, VStackView, ViewList, view_lists::*,
+        ButtonView, CenteredView, ImageView, RectView, StackPaddingType, StackView, UiContext,
+        view_lists::*,
     },
-    wgpu_utils::{Canvas as _, CanvasView, Srgb, Srgba, WindowCanvas},
+    wgpu_utils::{Canvas as _, CanvasView, Srgb, WindowCanvas},
 };
 
 pub(crate) struct Application<'cx> {
@@ -102,83 +101,6 @@ fn init_wgpu() -> (wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue) {
     (instance, adapter, device, queue)
 }
 
-struct HStack0<'cx> {
-    rect_views: Vec<RectView>,
-    button_view: ButtonView<'cx, UiState<'cx>>,
-}
-impl<'cx> ViewList<'cx> for HStack0<'cx> {
-    type UiState = UiState<'cx>;
-    impl_view_list! {
-        'cx,
-        rect_views(iter),
-        button_view,
-    }
-}
-
-impl<'cx> HStack0<'cx> {
-    pub fn new(ui_context: &UiContext<'cx, UiState<'cx>>) -> HStackView<'cx, Self> {
-        let colors = [0x008080, 0x404080, 0xB04020];
-        let line_width = 2.;
-        HStackView::new(Self {
-            rect_views: colors
-                .into_iter()
-                .map(|color| {
-                    RectView::new(RectSize::new(64., 64.))
-                        .with_fill_color(Srgb::from_hex(color))
-                        .with_line_color(Srgb::from_hex(0xFFFFFF))
-                        .with_line_width(line_width)
-                })
-                .collect(),
-            button_view: {
-                ButtonView::new(ui_context)
-                    .with_callback(UiState::button_callback_increment)
-                    .with_style(Theme::DEFAULT.button_style(ButtonKind::Primary).scaled(2.))
-                    .with_size(RectSize::new(128., 48.))
-                    .with_title(String::from("+1"))
-            },
-        })
-        .with_inter_padding(10.)
-    }
-}
-
-struct HStack2<'cx> {
-    image_view: ImageView,
-    button_view: ButtonView<'cx, UiState<'cx>>,
-    text_view: TextView<'cx>,
-}
-impl<'cx> ViewList<'cx> for HStack2<'cx> {
-    type UiState = UiState<'cx>;
-    impl_view_list! {
-        'cx,
-        image_view,
-        button_view,
-        text_view,
-    }
-}
-
-impl<'cx> HStack2<'cx> {
-    pub fn new(
-        ui_context: &UiContext<'cx, UiState<'cx>>,
-        texture: Texture2d,
-    ) -> HStackView<'cx, Self> {
-        HStackView::new(Self {
-            image_view: ImageView::new_with_texture(texture).with_size(RectSize::new(28., 28.)),
-            button_view: {
-                ButtonView::new(ui_context)
-                    .with_callback(UiState::button_callback_decrement)
-                    .with_style(Theme::DEFAULT.button_style(ButtonKind::Mundane).scaled(2.))
-                    .with_size(RectSize::new(128., 48.))
-                    .with_title(String::from("-1"))
-            },
-            text_view: TextView::new(ui_context)
-                .with_font_size(48.)
-                .with_fg_color(Srgb::from_hex(0xFFFFFF))
-                .with_bg_color(Srgb::from_hex(0x308050)),
-        })
-        .with_inter_padding(10.)
-    }
-}
-
 struct UiState<'cx> {
     resources: &'cx AppResources,
     device: wgpu::Device,
@@ -189,17 +111,8 @@ struct UiState<'cx> {
     background_rect_view: RectView,
     counter: i64,
     #[allow(clippy::type_complexity)]
-    stack: SpreadView<
-        VStackView<
-            'cx,
-            ViewList3<
-                Self,
-                SpreadView<HStackView<'cx, HStack0<'cx>>>,
-                SpreadView<HStackView<'cx, ViewList1<Self, TextView<'cx>>>>,
-                SpreadView<HStackView<'cx, HStack2<'cx>>>,
-            >,
-        >,
-    >,
+    root_view:
+        CenteredView<StackView<'cx, ViewList3<Self, ButtonView<'cx, Self>, RectView, ImageView>>>,
 }
 
 impl<'cx> UiState<'cx> {
@@ -221,13 +134,7 @@ impl<'cx> UiState<'cx> {
         )
         .unwrap_or_else(|e| panic!("{e}"));
 
-        let image = resources.load_image("images/pfp.png").unwrap();
-        let image_ref = ImageRef {
-            width: image.width(),
-            height: image.height(),
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            data: image.as_ref(),
-        };
+        let image_ref = resources.load_image("images/pfp.png").unwrap();
         let texture = Texture2d::create(&device, &queue, image_ref);
 
         let mut self_ = Self {
@@ -239,43 +146,26 @@ impl<'cx> UiState<'cx> {
             background_rect_view: the_default::<RectView>()
                 .with_fill_color(Theme::DEFAULT.primary_background()),
             counter: 0,
-            stack: SpreadView::vertical(
-                VStackView::new(ViewList3::new(
-                    SpreadView::horizontal(HStack0::new(&ui_context)),
-                    SpreadView::horizontal(HStackView::new(ViewList1::new(
-                        TextView::new(&ui_context)
-                            .with_font_size(48.0)
-                            .with_bg_color(Srgba::from_hex(0x00000000))
-                            .with_fg_color(Srgb::from_hex(0xFFFFFF)),
-                    ))),
-                    SpreadView::horizontal(HStack2::new(&ui_context, texture)),
+            root_view: CenteredView::new(
+                RectSize::new(500., 350.),
+                StackView::horizontal(ViewList3::new(
+                    ButtonView::new(&ui_context)
+                        .with_size(RectSize::new(128., 64.))
+                        .with_style(Theme::DEFAULT.button_style(ButtonKind::Mundane).scaled(2.)),
+                    RectView::new(RectSize::new(100., 100.))
+                        .with_fill_color(Srgb::from_hex(0x008080))
+                        .with_line_color(Srgb::from_hex(0xFFFFFF))
+                        .with_line_width(2.),
+                    ImageView::new(RectSize::new(100., 100.)).with_texture(texture),
                 ))
-                .with_layout(StackLayout::EqualSpacing),
-            ),
+                .with_background_color(Srgb::from_hex(0x404040))
+                .with_padding_type(StackPaddingType::Omnipadded),
+            )
+            .with_size(RectSize::new(500., 350.)),
             ui_context,
         };
         self_.window_resized();
-        self_.update_counter_text();
         self_
-    }
-
-    fn button_callback_increment(&mut self, event: ButtonEvent) {
-        if event.is_button_trigger() {
-            self.counter += 1;
-            self.update_counter_text();
-        }
-    }
-
-    fn button_callback_decrement(&mut self, event: ButtonEvent) {
-        if event.is_button_trigger() {
-            self.counter -= 1;
-            self.update_counter_text();
-        }
-    }
-
-    fn update_counter_text(&mut self) {
-        let text_view = &mut self.stack.subviews_mut().view1.subviews_mut().view0;
-        text_view.set_text(format!("{}", self.counter));
     }
 
     fn frame(&mut self, canvas: CanvasView) {
@@ -297,27 +187,8 @@ impl<'cx> UiState<'cx> {
             ..the_default()
         });
 
-        let seconds = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs_f64();
-        let wave = ((f64::sin(seconds * std::f64::consts::TAU / 4.) + 1.) * 0.5) as f32;
-
-        for rect_view in &mut self.stack.subviews_mut().view0.subviews_mut().rect_views {
-            let min_width = rect_view.line_width().left() + rect_view.line_width().right();
-            rect_view.size_mut().width = (64. - min_width) * wave + min_width;
-        }
-
-        self.stack
-            .subviews_mut()
-            .view2
-            .subviews_mut()
-            .text_view
-            .set_text({
-                let wave_u = (wave * 12.).round() as usize;
-                let mut string = String::with_capacity(wave_u);
-                for _ in 0..wave_u {
-                    string.push('A');
-                }
-                string
-            });
+        // let seconds = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs_f64();
+        // let wave = ((f64::sin(seconds * std::f64::consts::TAU / 4.) + 1.) * 0.5) as f32;
 
         self.ui_context.prepare_view_bounded(
             &self.device,
@@ -332,13 +203,13 @@ impl<'cx> UiState<'cx> {
             &self.queue,
             &canvas,
             point2(0., 0.),
-            &mut self.stack,
+            &mut self.root_view,
         );
 
         self.ui_context
             .draw_view(&mut render_pass, &self.background_rect_view);
 
-        self.ui_context.draw_view(&mut render_pass, &self.stack);
+        self.ui_context.draw_view(&mut render_pass, &self.root_view);
 
         drop(render_pass);
 
@@ -358,7 +229,7 @@ impl<'cx> UiState<'cx> {
                 self.frame(canvas_view);
                 self.window.pre_present_notify();
                 self.window_canvas.finish_drawing().unwrap();
-                self.window.request_redraw();
+                // self.window.request_redraw();
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput {

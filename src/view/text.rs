@@ -1,4 +1,4 @@
-use std::cell::OnceCell;
+use std::{borrow::Cow, cell::OnceCell};
 
 use cgmath::*;
 
@@ -13,7 +13,7 @@ use crate::{
 pub struct TextView<'cx> {
     n_lines: usize,
     n_columns: usize,
-    text: String,
+    text: Cow<'cx, str>,
     font_size: f32,
     font: Font<'cx>,
     fg_color: Rgba,
@@ -29,7 +29,7 @@ impl<'cx> TextView<'cx> {
         Self {
             n_lines: 1,
             n_columns: 0,
-            text: String::new(),
+            text: "".into(),
             font_size: 12.,
             font: ui_context.text_renderer().font(),
             fg_color: Rgba::from_hex(0xFFFFFF),
@@ -71,8 +71,9 @@ impl<'cx> TextView<'cx> {
         param_mut_preamble: |self_: &mut Self| self_.needs_update = true,
     }
 
-    pub fn set_text(&mut self, text: String) {
+    pub fn set_text(&mut self, text: impl Into<Cow<'cx, str>>) {
         self.text_needs_update = true;
+        let text = text.into();
         self.n_lines = 1usize;
         let mut n_columns = 0usize;
         self.n_columns = 0;
@@ -97,6 +98,11 @@ impl<'cx> TextView<'cx> {
         self.text = text;
     }
 
+    pub fn with_text(mut self, text: impl Into<Cow<'cx, str>>) -> Self {
+        self.set_text(text);
+        self
+    }
+
     pub fn n_columns(&self) -> usize {
         self.n_columns
     }
@@ -112,7 +118,7 @@ impl<'cx> TextView<'cx> {
         )
     }
 
-    pub fn set_bounds_(&mut self, bounds: Bounds<f32>) {
+    pub fn apply_bounds_(&mut self, bounds: Bounds<f32>) {
         self.needs_update = true;
         self.origin = bounds.origin;
     }
@@ -124,7 +130,7 @@ impl<'cx, UiState> View<'cx, UiState> for TextView<'cx> {
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        self.set_bounds_(bounds);
+        self.apply_bounds_(bounds);
     }
 
     fn prepare_for_drawing(

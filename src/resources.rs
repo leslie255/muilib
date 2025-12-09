@@ -9,7 +9,10 @@ use derive_more::{Display, Error, From};
 use image::{ImageError, RgbaImage};
 use serde::de::DeserializeOwned;
 
-use crate::utils::*;
+use crate::{
+    element::{ImageRef, RectSize},
+    utils::*,
+};
 
 #[derive(Debug, Display, From, Error)]
 pub enum LoadResourceError {
@@ -39,7 +42,7 @@ pub enum ResourceType {
 #[derive(Clone)]
 enum Resource {
     Text(Box<str>),
-    Image(Box<RgbaImage>),
+    Image(RgbaImage),
     Shader(Box<wgpu::ShaderModule>),
 }
 
@@ -89,12 +92,12 @@ impl AppResources {
         Ok(unsafe { &*ptr })
     }
 
-    pub fn load_image(&self, subpath: impl AsRef<Path>) -> Result<&RgbaImage, LoadResourceError> {
+    pub fn load_image(&self, subpath: impl AsRef<Path>) -> Result<ImageRef<'_>, LoadResourceError> {
         let path = self.resource_directory.join(subpath.as_ref());
         let mut loaded_resources = self.loaded_resources.lock().unwrap();
         if let Some(cached_resource) = loaded_resources.get(&path) {
-            let cached_shader: &RgbaImage = match cached_resource {
-                Resource::Image(image) => image.as_ref(),
+            let cached_image: &RgbaImage = match cached_resource {
+                Resource::Image(image) => image,
                 resource => {
                     return Err(LoadResourceError::TypeConflict {
                         path,
@@ -103,13 +106,21 @@ impl AppResources {
                     });
                 }
             };
-            return Ok(unsafe { transmute_lifetime(cached_shader) });
+            return Ok(ImageRef::from_rgba_image(unsafe {
+                transmute_lifetime(cached_image)
+            }));
         }
         log::info!("loading resource {path:?}...");
-        let image_boxed = Box::new(image::open(&path)?.into_rgba8());
-        let ptr: *const RgbaImage = image_boxed.as_ref() as *const _;
-        loaded_resources.insert(path, Resource::Image(image_boxed));
-        Ok(unsafe { &*ptr })
+        let image = image::open(&path)?.into_rgba8();
+        let (width, height) = image.dimensions();
+        let vec: &Vec<u8> = image.as_raw();
+        let ptr: *const [u8] = vec.as_ref() as *const _;
+        loaded_resources.insert(path, Resource::Image(image));
+        Ok(ImageRef {
+            size: RectSize::new(width, height),
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            data: unsafe { &*ptr },
+        })
     }
 
     pub fn load_shader(

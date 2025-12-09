@@ -11,10 +11,48 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct ImageRef<'a> {
-    pub width: u32,
-    pub height: u32,
+    pub size: RectSize<u32>,
     pub format: wgpu::TextureFormat,
     pub data: &'a [u8],
+}
+
+impl<'a> ImageRef<'a> {
+    pub fn from_rgba_image(image: &'a image::RgbaImage) -> Self {
+        Self {
+            size: RectSize::new(image.width(), image.height()),
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            data: image.as_ref(),
+        }
+    }
+
+    pub fn width(&self) -> u32 {
+        self.size.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.size.height
+    }
+
+    pub fn size_f(&self) -> RectSize<f32> {
+        RectSize {
+            width: self.size.width as f32,
+            height: self.size.height as f32,
+        }
+    }
+
+    pub fn width_f(&self) -> f32 {
+        self.size.width as f32
+    }
+
+    pub fn height_f(&self) -> f32 {
+        self.size.height as f32
+    }
+}
+
+impl<'a> From<&'a image::RgbaImage> for ImageRef<'a> {
+    fn from(image: &'a image::RgbaImage) -> Self {
+        Self::from_rgba_image(image)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -30,8 +68,8 @@ impl Texture2d {
             &wgpu::TextureDescriptor {
                 label: None,
                 size: wgpu::Extent3d {
-                    width: image.width,
-                    height: image.height,
+                    width: image.width(),
+                    height: image.height(),
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
@@ -46,7 +84,7 @@ impl Texture2d {
         );
         let texture_view = texture.create_view(&the_default());
         Self {
-            size: RectSize::new(image.width as f32, image.height as f32),
+            size: image.size_f(),
             wgpu_texture_view: texture_view,
         }
     }
@@ -165,7 +203,6 @@ impl<'cx> ImageRenderer<'cx> {
             cache: None,
         });
         let sampler = device.create_sampler(&wgpu::wgt::SamplerDescriptor {
-            label: None,
             address_mode_u: wgpu::AddressMode::Repeat,
             address_mode_v: wgpu::AddressMode::Repeat,
             address_mode_w: wgpu::AddressMode::Repeat,

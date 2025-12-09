@@ -4,6 +4,7 @@ use crate::{
 };
 
 mod abstract_views;
+mod axis;
 mod button;
 mod image;
 mod rect;
@@ -12,6 +13,7 @@ mod text;
 mod ui_context;
 
 pub use abstract_views::*;
+pub use axis::*;
 pub use button::*;
 pub use image::*;
 pub use rect::*;
