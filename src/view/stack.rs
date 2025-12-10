@@ -316,20 +316,16 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for ZStackView<'
         let squeeze_vertical = (bounds.height() / size.height).min(1.);
         let mut subview_sizes = self.subview_sizes.iter();
         self.subviews.for_each_subview_mut(|subview| {
-            let Some(&subview_size) = subview_sizes.next() else {
+            let Some(&subview_size_original) = subview_sizes.next() else {
                 Self::warn_mismatched_n_subview();
                 return ControlFlow::Break;
             };
-            let mut padding = (bounds.size.as_vec() - subview_size.as_vec()).mul_element_wise(vec2(
-                self.alignment_horizontal.ratio() * squeeze_horizontal,
-                self.alignment_vertical.ratio() * squeeze_vertical,
+            let subview_size = subview_size_original.scaled(squeeze_horizontal, squeeze_vertical);
+            let padding = (bounds.size.as_vec() - subview_size.as_vec()).mul_element_wise(vec2(
+                self.alignment_horizontal.ratio(),
+                self.alignment_vertical.ratio(),
             ));
-            padding.x = padding.x.max(0.);
-            padding.y = padding.y.max(0.);
-            subview.apply_bounds(Bounds::new(
-                bounds.origin + padding,
-                subview_size.scaled(squeeze_horizontal, squeeze_vertical),
-            ));
+            subview.apply_bounds(Bounds::new(bounds.origin + padding, subview_size));
             ControlFlow::Continue
         });
     }

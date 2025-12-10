@@ -17,8 +17,8 @@ use crate::{
     theme::{ButtonKind, Theme},
     utils::*,
     view::{
-        ButtonView, ImageView, RectView, SpreadAxis, StackPaddingType, StackView, UiContext, View,
-        ViewExt as _, ZStackAlignment, ZStackView, view_lists::*,
+        ButtonView, ImageView, RectView, SpreadAxis, StackPaddingType, StackView, TextView,
+        UiContext, View, ViewExt as _, ZStackAlignment, ZStackView, view_lists::*,
     },
     wgpu_utils::{Canvas as _, CanvasView, Srgb, Srgba, WindowCanvas},
 };
@@ -108,7 +108,6 @@ struct UiState<'cx> {
     window_canvas: WindowCanvas<'static>,
     ui_context: UiContext<'cx, Self>,
     background_rect_view: RectView,
-    #[allow(clippy::type_complexity)]
     root_view: Box<dyn View<'cx, Self>>,
 }
 
@@ -143,19 +142,36 @@ impl<'cx> UiState<'cx> {
                 .with_fill_color(Theme::DEFAULT.primary_background()),
             root_view: StackView::horizontal(ViewList1::new(
                 StackView::horizontal(ViewList3::new(
-                    ButtonView::new(&ui_context)
-                        .with_size(RectSize::new(128., 64.))
-                        .with_style(Theme::DEFAULT.button_style(ButtonKind::Mundane).scaled(2.)),
-                    ZStackView::new(ViewList2::new(
-                        ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
-                        RectView::new(RectSize::new(50., 50.))
-                            .with_fill_color(Srgba::from_hex(0x80808080))
-                            .with_line_color(Srgb::from_hex(0xFFFFFF))
-                            .with_line_width(2.),
+                    StackView::vertical(ViewList2::new(
+                        TextView::new(&ui_context).with_text("Button:"),
+                        ButtonView::new(&ui_context)
+                            .with_size(RectSize::new(128., 64.))
+                            .with_style(
+                                Theme::DEFAULT.button_style(ButtonKind::Mundane).scaled(2.),
+                            ),
                     ))
-                    .with_alignment_horizontal(ZStackAlignment::Ratio(0.2))
-                    .with_alignment_vertical(ZStackAlignment::Ratio(0.2)),
-                    ImageView::new(RectSize::new(100., 100.)).with_texture(texture),
+                    .with_fixed_padding(4.)
+                    .with_padding_type(StackPaddingType::Interpadded),
+                    StackView::vertical(ViewList2::new(
+                        TextView::new(&ui_context).with_text("ImageView:"),
+                        ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
+                    ))
+                    .with_fixed_padding(4.)
+                    .with_padding_type(StackPaddingType::Interpadded),
+                    StackView::vertical(ViewList2::new(
+                        TextView::new(&ui_context).with_text("ZStackView:"),
+                        ZStackView::new(ViewList2::new(
+                            ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
+                            RectView::new(RectSize::new(50., 50.))
+                                .with_fill_color(Srgba::from_hex(0x80808080))
+                                .with_line_color(Srgb::from_hex(0xFFFFFF))
+                                .with_line_width(2.),
+                        ))
+                        // .with_alignment_horizontal(ZStackAlignment::Ratio(0.2))
+                        // .with_alignment_vertical(ZStackAlignment::Ratio(0.2)),
+                    ))
+                    .with_fixed_padding(4.)
+                    .with_padding_type(StackPaddingType::Interpadded),
                 ))
                 .with_padding_type(StackPaddingType::Interpadded)
                 .with_fixed_padding(10.),

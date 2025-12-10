@@ -34,7 +34,7 @@ impl<'cx> TextView<'cx> {
             text: "".into(),
             font_size: 12.,
             font: ui_context.text_renderer().font(),
-            fg_color: Rgba::from_hex(0xFFFFFF),
+            fg_color: Rgba::from_hex(0xFFFFFFFF),
             bg_color: Rgba::from_hex(0x00000000),
             origin: point2(0., 0.),
             needs_update: false,
