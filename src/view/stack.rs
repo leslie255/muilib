@@ -223,12 +223,13 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for StackView<'c
     }
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum ZStackAlignment {
     #[default]
     Center,
     Leading,
     Trailing,
+    Ratio(f32),
 }
 
 impl ZStackAlignment {
@@ -237,6 +238,7 @@ impl ZStackAlignment {
             ZStackAlignment::Center => 0.5,
             ZStackAlignment::Leading => 0.0,
             ZStackAlignment::Trailing => 1.0,
+            ZStackAlignment::Ratio(ratio) => ratio,
         }
     }
 }
