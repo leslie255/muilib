@@ -259,12 +259,12 @@ impl<'cx, UiState> ButtonView<'cx, UiState> {
         let text_size = self.text_view.size();
         let rect_bounds = self.rect_view.bounds();
         let origin = point2(
-            rect_bounds.x_min() + 0.5 * (rect_bounds.width() - text_size.width),
-            rect_bounds.y_min() + 0.5 * (rect_bounds.height() - text_size.height),
+            rect_bounds.x_min() + 0.5 * (rect_bounds.width() - text_size.width).max(0.),
+            rect_bounds.y_min() + 0.5 * (rect_bounds.height() - text_size.height).max(0.),
         );
         self.text_view.apply_bounds_(Bounds {
             origin,
-            size: text_size,
+            size: text_size.min(rect_bounds.size),
         });
     }
 }

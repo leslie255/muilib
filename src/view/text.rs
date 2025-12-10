@@ -20,6 +20,8 @@ pub struct TextView<'cx> {
     bg_color: Rgba,
     origin: Point2<f32>,
     needs_update: bool,
+    squeeze_horizontal: f32,
+    squeeze_vertical: f32,
     text_needs_update: bool,
     raw: OnceCell<TextElement>,
 }
@@ -37,6 +39,8 @@ impl<'cx> TextView<'cx> {
             origin: point2(0., 0.),
             needs_update: false,
             text_needs_update: false,
+            squeeze_horizontal: 1.,
+            squeeze_vertical: 1.,
             raw: OnceCell::new(),
         }
     }
@@ -119,6 +123,9 @@ impl<'cx> TextView<'cx> {
     }
 
     pub fn apply_bounds_(&mut self, bounds: Bounds<f32>) {
+        let size = self.size();
+        self.squeeze_horizontal = (bounds.width() / size.width).min(1.);
+        self.squeeze_vertical = (bounds.height() / size.height).min(1.);
         self.needs_update = true;
         self.origin = bounds.origin;
     }
@@ -149,7 +156,18 @@ impl<'cx, UiState> View<'cx, UiState> for TextView<'cx> {
         raw.set_projection(queue, canvas.projection);
         if self.needs_update {
             self.needs_update = false;
-            raw.set_parameters(queue, self.origin, self.font_size);
+            let this = &raw;
+            let origin = self.origin;
+            let font_size = self.font_size;
+            this.set_model_view(
+                queue,
+                Matrix4::from_translation(origin.to_vec().extend(0.))
+                    * Matrix4::from_nonuniform_scale(
+                        self.squeeze_horizontal * font_size,
+                        self.squeeze_vertical * font_size,
+                        1.,
+                    ),
+            );
             raw.set_fg_color(queue, self.fg_color);
             raw.set_bg_color(queue, self.bg_color);
         }
