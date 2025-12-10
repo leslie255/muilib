@@ -58,12 +58,12 @@ pub trait ViewExt<'cx, UiState: 'cx>: View<'cx, UiState> + Sized {
         SpreadView::new(axis, self)
     }
 
-    fn into_padded_view(self) -> PaddedView<Self> {
-        PaddedView::new(self)
+    fn into_container_view(self) -> ContainerView<Self> {
+        ContainerView::new(self)
     }
 
-    fn into_ratio_padded_view(self) -> RatioPaddedView<Self> {
-        RatioPaddedView::new(self)
+    fn into_ratio_padded_view(self) -> RatioContainerView<Self> {
+        RatioContainerView::new(self)
     }
 }
 
@@ -162,7 +162,7 @@ impl<Subview> SpreadView<Subview> {
 
 /// View that applys a fixed padding around a subview.
 #[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
-pub struct PaddedView<Subview> {
+pub struct ContainerView<Subview> {
     padding_left: f32,
     padding_right: f32,
     padding_top: f32,
@@ -176,7 +176,7 @@ pub struct PaddedView<Subview> {
     background_rect: RectView,
 }
 
-impl<Subview> PaddedView<Subview> {
+impl<Subview> ContainerView<Subview> {
     pub fn new(subview: Subview) -> Self {
         Self {
             padding_left: 0.,
@@ -268,7 +268,7 @@ impl<Subview> PaddedView<Subview> {
     }
 }
 
-impl<'cx, UiState, Subview> View<'cx, UiState> for PaddedView<Subview>
+impl<'cx, UiState, Subview> View<'cx, UiState> for ContainerView<Subview>
 where
     Subview: View<'cx, UiState>,
 {
@@ -335,7 +335,7 @@ where
 /// - `ratio_top`: value of `padding_top / (padding_top + padding_bottom)`
 /// - `ratio_left`: value of `padding_left / (padding_left + padding_right)`
 #[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
-pub struct RatioPaddedView<Subview> {
+pub struct RatioContainerView<Subview> {
     size: Option<RectSize<f32>>,
     ratio_left: f32,
     ratio_top: f32,
@@ -348,7 +348,7 @@ pub struct RatioPaddedView<Subview> {
     background_rect: RectView,
 }
 
-impl<Subview> RatioPaddedView<Subview> {
+impl<Subview> RatioContainerView<Subview> {
     pub fn new(subview: Subview) -> Self {
         Self {
             size: None,
@@ -439,7 +439,7 @@ impl<Subview> RatioPaddedView<Subview> {
     }
 }
 
-impl<'cx, UiState, Subview> View<'cx, UiState> for RatioPaddedView<Subview>
+impl<'cx, UiState, Subview> View<'cx, UiState> for RatioContainerView<Subview>
 where
     Subview: View<'cx, UiState>,
 {

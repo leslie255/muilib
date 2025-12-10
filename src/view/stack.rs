@@ -22,10 +22,20 @@ pub enum StackPaddingType {
     Omnipadded,
 }
 
+#[derive(Default, Debug, Clone, Copy)]
+pub enum StackAlignment {
+    #[default]
+    Center,
+    Leading,
+    Trailing,
+    Ratio(f32),
+}
+
 pub struct StackView<'cx, Subviews: ViewList<'cx>> {
     axis: Axis,
     subviews: Subviews,
     background_view: Option<RectView>,
+    alignment: StackAlignment,
     padding_type: StackPaddingType,
     fixed_padding: Option<f32>,
     subview_sizes: Vec<RectSize<f32>>,
@@ -40,6 +50,7 @@ impl<'cx, Subviews: ViewList<'cx>> StackView<'cx, Subviews> {
             axis,
             subviews,
             background_view: None,
+            alignment: StackAlignment::Center,
             padding_type: StackPaddingType::Interpadded,
             fixed_padding: None,
             subview_sizes: Vec::new(),
@@ -64,6 +75,16 @@ impl<'cx, Subviews: ViewList<'cx>> StackView<'cx, Subviews> {
         param_mut: axis_mut,
         set_param: set_axis,
         with_param: with_axis,
+        param_mut_preamble: |_: &mut Self| (),
+    }
+
+    property! {
+        vis: pub,
+        param_ty: StackAlignment,
+        param: alignment,
+        param_mut: alignment_mut,
+        set_param: set_alignment,
+        with_param: with_alignment,
         param_mut_preamble: |_: &mut Self| (),
     }
 
@@ -176,7 +197,8 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for StackView<'c
             );
             let subview_size = requested_size.min(remaining_size);
             let offset_beta = bounds.beta_min(self.axis)
-                + 0.5 * (bounds.length_beta(self.axis) - subview_size.length_beta(self.axis));
+                + self.alignment.ratio()
+                    * (bounds.length_beta(self.axis) - subview_size.length_beta(self.axis));
             let subview_bounds = Bounds::new(
                 Point2::new_on_axis(self.axis, offset_alpha, offset_beta),
                 subview_size,
@@ -223,30 +245,21 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for StackView<'c
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
-pub enum ZStackAlignment {
-    #[default]
-    Center,
-    Leading,
-    Trailing,
-    Ratio(f32),
-}
-
-impl ZStackAlignment {
+impl StackAlignment {
     fn ratio(self) -> f32 {
         match self {
-            ZStackAlignment::Center => 0.5,
-            ZStackAlignment::Leading => 0.0,
-            ZStackAlignment::Trailing => 1.0,
-            ZStackAlignment::Ratio(ratio) => ratio,
+            StackAlignment::Center => 0.5,
+            StackAlignment::Leading => 0.0,
+            StackAlignment::Trailing => 1.0,
+            StackAlignment::Ratio(ratio) => ratio,
         }
     }
 }
 
 pub struct ZStackView<'cx, Subviews: ViewList<'cx>> {
     subviews: Subviews,
-    alignment_horizontal: ZStackAlignment,
-    alignment_vertical: ZStackAlignment,
+    alignment_horizontal: StackAlignment,
+    alignment_vertical: StackAlignment,
     subview_sizes: Vec<RectSize<f32>>,
     size: Option<RectSize<f32>>,
     _marker: PhantomData<&'cx ()>,
@@ -256,8 +269,8 @@ impl<'cx, Subviews: ViewList<'cx>> ZStackView<'cx, Subviews> {
     pub fn new(subviews: Subviews) -> Self {
         Self {
             subviews,
-            alignment_horizontal: ZStackAlignment::Center,
-            alignment_vertical: ZStackAlignment::Center,
+            alignment_horizontal: StackAlignment::Center,
+            alignment_vertical: StackAlignment::Center,
             subview_sizes: Vec::new(),
             size: None,
             _marker: PhantomData,
@@ -266,7 +279,7 @@ impl<'cx, Subviews: ViewList<'cx>> ZStackView<'cx, Subviews> {
 
     property! {
         vis: pub,
-        param_ty: ZStackAlignment,
+        param_ty: StackAlignment,
         param: alignment_horizontal,
         param_mut: alignment_horizontal_mut,
         set_param: set_alignment_horizontal,
@@ -276,7 +289,7 @@ impl<'cx, Subviews: ViewList<'cx>> ZStackView<'cx, Subviews> {
 
     property! {
         vis: pub,
-        param_ty: ZStackAlignment,
+        param_ty: StackAlignment,
         param: alignment_vertical,
         param_mut: alignment_vertical_mut,
         set_param: set_alignment_vertical,

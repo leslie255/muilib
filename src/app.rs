@@ -18,7 +18,7 @@ use crate::{
     utils::*,
     view::{
         ButtonView, ImageView, RectView, SpreadAxis, StackPaddingType, StackView, TextView,
-        UiContext, View, ViewExt as _, ZStackAlignment, ZStackView, view_lists::*,
+        UiContext, View, ViewExt as _, StackAlignment, ZStackView, view_lists::*,
     },
     wgpu_utils::{Canvas as _, CanvasView, Srgb, Srgba, WindowCanvas},
 };
@@ -150,12 +150,14 @@ impl<'cx> UiState<'cx> {
                                 Theme::DEFAULT.button_style(ButtonKind::Mundane).scaled(2.),
                             ),
                     ))
+                    .with_alignment(StackAlignment::Leading)
                     .with_fixed_padding(4.)
                     .with_padding_type(StackPaddingType::Interpadded),
                     StackView::vertical(ViewList2::new(
                         TextView::new(&ui_context).with_text("ImageView:"),
                         ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
                     ))
+                    .with_alignment(StackAlignment::Leading)
                     .with_fixed_padding(4.)
                     .with_padding_type(StackPaddingType::Interpadded),
                     StackView::vertical(ViewList2::new(
@@ -167,9 +169,10 @@ impl<'cx> UiState<'cx> {
                                 .with_line_color(Srgb::from_hex(0xFFFFFF))
                                 .with_line_width(2.),
                         ))
-                        // .with_alignment_horizontal(ZStackAlignment::Ratio(0.2))
-                        // .with_alignment_vertical(ZStackAlignment::Ratio(0.2)),
+                        .with_alignment_horizontal(StackAlignment::Ratio(0.2))
+                        .with_alignment_vertical(StackAlignment::Ratio(0.2)),
                     ))
+                    .with_alignment(StackAlignment::Leading)
                     .with_fixed_padding(4.)
                     .with_padding_type(StackPaddingType::Interpadded),
                 ))
@@ -183,7 +186,7 @@ impl<'cx> UiState<'cx> {
             .with_ratio_left(0.2)
             .with_background_color(Srgb::from_hex(0xC040FF))
             .into_spread_view(SpreadAxis::Both)
-            .into_padded_view()
+            .into_container_view()
             .with_padding_top(20.)
             .with_padding_bottom(20.)
             .with_padding_left(80.)
