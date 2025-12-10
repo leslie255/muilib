@@ -320,10 +320,12 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for ZStackView<'
                 Self::warn_mismatched_n_subview();
                 return ControlFlow::Break;
             };
-            let padding = (bounds.size.as_vec() - subview_size.as_vec()).mul_element_wise(vec2(
+            let mut padding = (bounds.size.as_vec() - subview_size.as_vec()).mul_element_wise(vec2(
                 self.alignment_horizontal.ratio() * squeeze_horizontal,
                 self.alignment_vertical.ratio() * squeeze_vertical,
             ));
+            padding.x = padding.x.max(0.);
+            padding.y = padding.y.max(0.);
             subview.apply_bounds(Bounds::new(
                 bounds.origin + padding,
                 subview_size.scaled(squeeze_horizontal, squeeze_vertical),
