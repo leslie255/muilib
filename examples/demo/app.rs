@@ -8,10 +8,12 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::theme::Theme;
+use crate::theme::{ButtonKind, Theme};
 
 use uitest::{
-    view_lists::*, AppResources, Bounds, Canvas as _, CanvasRef, ContainerPadding, EventRouter, ImageView, RectSize, Srgb, StackAlignment, StackPaddingType, StackView, UiContext, View, ViewExt as _, WindowCanvas
+    AppResources, Bounds, ButtonView, Canvas as _, CanvasRef, ContainerPadding, EventRouter,
+    ImageView, RectSize, RectView, Rgba, Srgb, Srgba, StackAlignment, StackView,
+    TextView, UiContext, View, ViewExt as _, WindowCanvas, ZStackView, view_lists::*,
 };
 
 pub(crate) struct Application<'cx> {
@@ -78,6 +80,20 @@ impl<'cx> ApplicationHandler for Application<'cx> {
     }
 }
 
+trait OverlayFilter<'cx, UiState: 'cx>: View<'cx, UiState> + Sized {
+    fn overlay_filter(self, color: impl Into<Rgba>) -> impl View<'cx, UiState> {
+        ZStackView::new(ViewList2::new(
+            self,
+            RectView::new(RectSize::new(100., 100.))
+                .with_fill_color(color)
+                .with_line_color(Srgb::from_hex(0xFFFFFF))
+                .with_line_width(2.),
+        ))
+    }
+}
+
+impl<'cx, UiState: 'cx, T: View<'cx, UiState>> OverlayFilter<'cx, UiState> for T {}
+
 struct UiState<'cx> {
     window: Arc<Window>,
     window_canvas: WindowCanvas<'static>,
@@ -103,22 +119,54 @@ impl<'cx> UiState<'cx> {
         let mut self_ = Self {
             window,
             window_canvas,
-            root_view: StackView::horizontal(ViewList3::new(
-                ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
-                ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
-                ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
+            root_view: StackView::vertical(ViewList3::new(
+                StackView::horizontal(ViewList2::new(
+                    TextView::new(&ui_context)
+                        .with_text("@KERBAL")
+                        .with_font_size(32.),
+                    ButtonView::new(&ui_context)
+                        .with_style(theme.button_style(ButtonKind::Primary))
+                        .with_title("255"),
+                ))
+                .with_fixed_padding(10.)
+                .with_alignment(StackAlignment::Trailing),
+                StackView::horizontal(ViewList3::new(
+                    ImageView::new(RectSize::new(100., 100.))
+                        .with_texture(texture.clone())
+                        .overlay_filter(Srgba::from_hex(0x0000FF80)),
+                    ImageView::new(RectSize::new(100., 100.))
+                        .with_texture(texture.clone())
+                        .overlay_filter(Srgba::from_hex(0x00FF0080)),
+                    ImageView::new(RectSize::new(100., 100.))
+                        .with_texture(texture.clone())
+                        .overlay_filter(Srgba::from_hex(0xFF000080)),
+                ))
+                .with_fixed_padding(10.),
+                StackView::horizontal(ViewList3::new(
+                    ImageView::new(RectSize::new(100., 100.))
+                        .with_texture(texture.clone())
+                        .overlay_filter(Srgba::from_hex(0x00FFFF80)),
+                    ImageView::new(RectSize::new(100., 100.))
+                        .with_texture(texture.clone())
+                        .overlay_filter(Srgba::from_hex(0xFFFF0080)),
+                    ImageView::new(RectSize::new(100., 100.))
+                        .with_texture(texture.clone())
+                        .overlay_filter(Srgba::from_hex(0xFF00FF80)),
+                ))
+                .with_fixed_padding(10.)
+                .with_alignment(StackAlignment::Leading),
             ))
             .with_fixed_padding(10.)
-            .with_alignment(StackAlignment::Center)
-            .with_padding_type(StackPaddingType::Interpadded)
+            .with_alignment(StackAlignment::Leading)
             .into_container_view()
-            .with_padding(ContainerPadding::Fixed(10.))
+            .with_padding(ContainerPadding::Fixed(20.))
             .with_background_color(theme.tertiary_background())
             .into_container_view()
-            .with_padding_left(ContainerPadding::RatioOfRemainingSpace(0.5))
-            .with_padding_right(ContainerPadding::RatioOfRemainingSpace(0.5))
             .with_padding_top(ContainerPadding::Fixed(20.))
-            .with_padding_bottom(ContainerPadding::RatioOfRemainingSpace(1.0))
+            .with_padding_left(ContainerPadding::Fixed(20.))
+            .with_padding_bottom(ContainerPadding::Spread)
+            .with_padding_right(ContainerPadding::Spread)
+            .with_spread_ratio_vertical(0.2)
             .with_background_color(theme.secondary_background())
             .into_container_view()
             .with_padding(ContainerPadding::Fixed(20.))

@@ -145,35 +145,26 @@ pub enum ContainerPadding {
     /// Fixed padding.
     Fixed(f32),
     /// As ratio of the view's size on that axis.
+    ///
+    /// FIXME: RatioOfViewSize does not squeeze properly when not enough space is provided.
     RatioOfViewSize(f32),
-    /// As ratio of the remaining space on that axis.
+    /// Take the rest of the remaining space.
     ///
-    /// If padding on both sides of an axis is `RatioOfRemainingSpace`, then the padding is ratio
-    /// multiplied by the total remaining length of both sides.
+    /// If both edges of an axis are `Spread`, then the view is positioned somewhere in the center.
+    /// The position of the view in this situation is determined by `spread_ratio_{vertical|horizontal}`, as follows:
     ///
-    /// If padding on only one side of an axis is `RatioOfRemainingSpace`, then the padding is the
-    /// ratio multiplied by the remaining length of its own side.
+    /// - `padding_left = spread_ratio_horizontal * (availible_width - subview_width)`
+    /// - `padding_top = spread_ratio_vertical * (availible_height - subview_height)`
+    /// - `padding_right = (1.0 - spread_ratio_horizontal) * (availible_width - subview_width)`
+    /// - `padding_bottom = (1.0 - spread_ratio_vertical) * (availible_height - subview_height)`
     ///
-    /// For example:
-    ///
-    /// - if:
-    ///   - `padding_left = Fixed(20.0)`
-    ///   - `padding_right = RatioOfRemainingSpace(0.5)`,
-    /// - then:
-    ///   - padding on the left edge is: `20.0`
-    ///   - padding on the right edge is: `0.5 * (availible_width - subview_width - 20.0)`
-    ///
-    /// - if:
-    ///   - `padding_left = RatioOfRemainingSpace(0.4)`
-    ///   - `padding_right = RatioOfRemainingSpace(0.6)`,
-    /// - then:
-    ///   - padding on the left edge is: `0.4 * availible_width`
-    ///   - padding on the right edge is: `0.6 * availible_width`
-    RatioOfRemainingSpace(f32),
+    /// This means that, if paddings on both edges of axis are `Spread`, and that spread ratio of
+    /// that axis is `0.5`, then the view is centered on that axis.
+    Spread,
 }
 
 impl ContainerPadding {
-    pub fn as_fixed(&self) -> Option<f32> {
+    fn as_fixed(&self) -> Option<f32> {
         if let &Self::Fixed(v) = self {
             Some(v)
         } else {
@@ -199,6 +190,8 @@ pub struct ContainerView<Subview> {
     padding_right: ContainerPadding,
     padding_top: ContainerPadding,
     padding_bottom: ContainerPadding,
+    spread_ratio_horizontal: f32,
+    spread_ratio_vertical: f32,
     subview_size: Option<RectSize<f32>>,
     background_rect: RectView,
 }
@@ -211,6 +204,8 @@ impl<Subview> ContainerView<Subview> {
             padding_right: ContainerPadding::Fixed(0.),
             padding_top: ContainerPadding::Fixed(0.),
             padding_bottom: ContainerPadding::Fixed(0.),
+            spread_ratio_horizontal: 0.5,
+            spread_ratio_vertical: 0.5,
             subview_size: None,
             background_rect: RectView::new(RectSize::new(0., 0.))
                 .with_fill_color(Rgba::new(0., 0., 0., 0.)),
@@ -265,6 +260,26 @@ impl<Subview> ContainerView<Subview> {
         param_mut_preamble: |_: &mut Self| {},
     }
 
+    property! {
+        vis: pub,
+        param_ty: f32,
+        param: spread_ratio_horizontal,
+        param_mut: spread_ratio_horizontal_mut,
+        set_param: set_spread_ratio_horizontal,
+        with_param: with_spread_ratio_horizontal,
+        param_mut_preamble: |_: &mut Self| {},
+    }
+
+    property! {
+        vis: pub,
+        param_ty: f32,
+        param: spread_ratio_vertical,
+        param_mut: spread_ratio_vertical_mut,
+        set_param: set_spread_ratio_vertical,
+        with_param: with_spread_ratio_vertical,
+        param_mut_preamble: |_: &mut Self| {},
+    }
+
     computed_property! {
         vis: pub,
         param_ty: ContainerPadding,
@@ -292,6 +307,7 @@ impl<Subview> ContainerView<Subview> {
     fn padding(
         padding_leading: ContainerPadding,
         padding_trailing: ContainerPadding,
+        spread_ratio: f32,
         view_length: f32,
         remaining_length: f32,
     ) -> (f32, f32) {
@@ -299,19 +315,20 @@ impl<Subview> ContainerView<Subview> {
         let padding = |padding: ContainerPadding| match padding {
             Fixed(fixed) => fixed,
             RatioOfViewSize(ratio) => ratio * view_length,
-            RatioOfRemainingSpace(ratio) => ratio * remaining_length,
+            Spread => spread_ratio * remaining_length,
         };
         match (padding_leading, padding_trailing) {
-            (leading @ RatioOfRemainingSpace(_), trailing @ RatioOfRemainingSpace(_)) => {
-                (padding(leading), padding(trailing))
-            }
-            (leading, RatioOfRemainingSpace(ratio)) => {
+            (Spread, Spread) => (
+                spread_ratio * remaining_length,
+                spread_ratio * remaining_length,
+            ),
+            (leading, Spread) => {
                 let padding_leading = padding(leading);
-                (padding_leading, (remaining_length - padding_leading) * ratio)
+                (padding_leading, (remaining_length - padding_leading))
             }
-            (RatioOfRemainingSpace(ratio), trailing) => {
+            (Spread, trailing) => {
                 let padding_trailing = padding(trailing);
-                ((remaining_length - padding_trailing) * ratio, padding_trailing)
+                ((remaining_length - padding_trailing), padding_trailing)
             }
             (leading, trailing) => (padding(leading), padding(trailing)),
         }
@@ -329,12 +346,14 @@ where
         let (padding_left, padding_right) = Self::padding(
             self.padding_left,
             self.padding_right,
+            self.spread_ratio_horizontal,
             subview_size.width,
             f32::INFINITY,
         );
         let (padding_top, padding_bottom) = Self::padding(
             self.padding_top,
             self.padding_bottom,
+            self.spread_ratio_vertical,
             subview_size.height,
             f32::INFINITY,
         );
@@ -346,50 +365,55 @@ where
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
         self.background_rect.apply_bounds_(bounds);
+        let requested_size = self.subview_size.unwrap_or_else(|| {
+            log::warn!(
+                "PaddedView::apply_bounds called without a prior PaddedView::preferred_size"
+            );
+            self.subview.preferred_size()
+        });
         let max_subview_size = RectSize {
             width: (bounds.width()
                 - self.padding_left.as_fixed().unwrap_or(0.)
-                - self.padding_right.as_fixed().unwrap_or(0.))
-            .max(0.),
+                - self.padding_right.as_fixed().unwrap_or(0.)),
             height: (bounds.height()
                 - self.padding_top.as_fixed().unwrap_or(0.)
-                - self.padding_bottom.as_fixed().unwrap_or(0.))
-            .max(0.),
-        };
-        let subview_size = self
-            .subview_size
-            .unwrap_or_else(|| {
-                log::warn!(
-                    "PaddedView::apply_bounds called without a prior PaddedView::preferred_size"
-                );
-                self.subview.preferred_size()
-            })
-            .min(max_subview_size);
+                - self.padding_bottom.as_fixed().unwrap_or(0.)),
+        }
+        .max(RectSize::new(0., 0.));
+        let subview_size = requested_size.min(max_subview_size);
         let (padding_left, padding_right) = Self::padding(
             self.padding_left,
             self.padding_right,
+            self.spread_ratio_horizontal,
             subview_size.width,
             (bounds.width() - subview_size.width).max(0.),
         );
         let (padding_top, padding_bottom) = Self::padding(
             self.padding_top,
             self.padding_bottom,
+            self.spread_ratio_vertical,
             subview_size.height,
             (bounds.height() - subview_size.height).max(0.),
         );
-        let preferred_size = RectSize {
+        let padded_size = RectSize {
             width: padding_left + subview_size.width + padding_right,
             height: padding_top + subview_size.height + padding_bottom,
         };
-        let squeeze_horizontal = (bounds.width() / preferred_size.width).min(1.);
-        let squeeze_vertical = (bounds.height() / preferred_size.height).min(1.);
-        let bounds = Bounds::from_scalars(
-            bounds.x_min() + padding_left * squeeze_horizontal,
-            bounds.y_min() + padding_top * squeeze_vertical,
+        let squeeze_horizontal = (bounds.width() / padded_size.width).min(1.);
+        let squeeze_vertical = (bounds.height() / padded_size.height).min(1.);
+        let mut subview_bounds = Bounds::from_scalars(
+            bounds.x_min() + padding_left,
+            bounds.y_min() + padding_top,
             subview_size.width * squeeze_horizontal,
             subview_size.height * squeeze_vertical,
         );
-        self.subview.apply_bounds(bounds);
+        if subview_bounds.x_max() > bounds.x_max() {
+            subview_bounds.size.width = (bounds.x_max() - subview_bounds.x_min()).max(0.);
+        }
+        if subview_bounds.y_max() > bounds.y_max() {
+            subview_bounds.size.height = (bounds.y_max() - subview_bounds.y_min()).max(0.);
+        }
+        self.subview.apply_bounds(subview_bounds);
     }
 
     fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx, UiState>, canvas: &CanvasRef) {
