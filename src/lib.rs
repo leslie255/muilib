@@ -1,5 +1,9 @@
 extern crate derive;
 
+pub use cgmath;
+pub use wgpu;
+pub use winit;
+
 mod bounds;
 mod canvas;
 mod color;

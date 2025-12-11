@@ -8,12 +8,10 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::theme::{ButtonKind, Theme};
+use crate::theme::Theme;
 
 use uitest::{
-    AppResources, Bounds, ButtonView, Canvas as _, CanvasRef, EventRouter, ImageView, RectSize,
-    RectView, SpreadAxis, Srgb, Srgba, StackAlignment, StackPaddingType, StackView, TextView,
-    UiContext, View, ViewExt as _, WindowCanvas, ZStackView, view_lists::*,
+    view_lists::*, AppResources, Bounds, Canvas as _, CanvasRef, ContainerPadding, EventRouter, ImageView, RectSize, Srgb, StackAlignment, StackPaddingType, StackView, UiContext, View, ViewExt as _, WindowCanvas
 };
 
 pub(crate) struct Application<'cx> {
@@ -97,64 +95,34 @@ impl<'cx> UiState<'cx> {
             UiContext::create_for_window(resources, Arc::clone(&window), event_router)
                 .unwrap_or_else(|e| panic!("{e}"));
 
+        let theme = &Theme::DEFAULT;
+
         let image = resources.load_image("images/pfp.png").unwrap();
         let texture = ui_context.create_texture(image);
 
         let mut self_ = Self {
             window,
             window_canvas,
-            root_view: StackView::horizontal(ViewList1::new(
-                StackView::horizontal(ViewList3::new(
-                    StackView::vertical(ViewList2::new(
-                        TextView::new(&ui_context).with_text("Button:"),
-                        ButtonView::new(&ui_context)
-                            .with_size(RectSize::new(128., 64.))
-                            .with_style(
-                                Theme::DEFAULT.button_style(ButtonKind::Primary).scaled(2.),
-                            ),
-                    ))
-                    .with_alignment(StackAlignment::Leading)
-                    .with_fixed_padding(4.)
-                    .with_padding_type(StackPaddingType::Interpadded),
-                    StackView::vertical(ViewList2::new(
-                        TextView::new(&ui_context).with_text("ImageView:"),
-                        ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
-                    ))
-                    .with_alignment(StackAlignment::Leading)
-                    .with_fixed_padding(4.)
-                    .with_padding_type(StackPaddingType::Interpadded),
-                    StackView::vertical(ViewList2::new(
-                        TextView::new(&ui_context).with_text("ZStackView:"),
-                        ZStackView::new(ViewList2::new(
-                            ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
-                            RectView::new(RectSize::new(50., 50.))
-                                .with_fill_color(Srgba::from_hex(0x80808080))
-                                .with_line_color(Srgb::from_hex(0xFFFFFF))
-                                .with_line_width(2.),
-                        ))
-                        .with_alignment_horizontal(StackAlignment::Ratio(0.2))
-                        .with_alignment_vertical(StackAlignment::Ratio(0.2)),
-                    ))
-                    .with_alignment(StackAlignment::Leading)
-                    .with_fixed_padding(4.)
-                    .with_padding_type(StackPaddingType::Interpadded),
-                ))
-                .with_padding_type(StackPaddingType::Interpadded)
-                .with_fixed_padding(10.),
+            root_view: StackView::horizontal(ViewList3::new(
+                ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
+                ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
+                ImageView::new(RectSize::new(100., 100.)).with_texture(texture.clone()),
             ))
-            .with_padding_type(StackPaddingType::Omnipadded)
-            .with_background_color(Theme::DEFAULT.tertiary_background())
-            .into_ratio_container_view()
-            .with_ratio_top(0.2)
-            .with_ratio_left(0.2)
-            .with_background_color(Theme::DEFAULT.secondary_background())
-            .into_spread_view(SpreadAxis::Both)
+            .with_fixed_padding(10.)
+            .with_alignment(StackAlignment::Center)
+            .with_padding_type(StackPaddingType::Interpadded)
             .into_container_view()
-            .with_padding_top(20.)
-            .with_padding_bottom(20.)
-            .with_padding_left(80.)
-            .with_padding_right(80.)
-            .with_background_color(Theme::DEFAULT.primary_background())
+            .with_padding(ContainerPadding::Fixed(10.))
+            .with_background_color(theme.tertiary_background())
+            .into_container_view()
+            .with_padding_left(ContainerPadding::RatioOfRemainingSpace(0.5))
+            .with_padding_right(ContainerPadding::RatioOfRemainingSpace(0.5))
+            .with_padding_top(ContainerPadding::Fixed(20.))
+            .with_padding_bottom(ContainerPadding::RatioOfRemainingSpace(1.0))
+            .with_background_color(theme.secondary_background())
+            .into_container_view()
+            .with_padding(ContainerPadding::Fixed(20.))
+            .with_background_color(theme.primary_background())
             .into_box_dyn_view(),
             ui_context,
         };
@@ -165,7 +133,7 @@ impl<'cx> UiState<'cx> {
     fn frame(&mut self, canvas: CanvasRef) {
         let mut render_pass = self
             .ui_context
-            .begin_render_pass(&canvas, Theme::DEFAULT.primary_background());
+            .begin_render_pass(&canvas, Srgb::from_hex(0));
 
         self.ui_context
             .prepare_view_bounded(&canvas, canvas.bounds(), self.root_view.as_mut());
