@@ -3,10 +3,8 @@ use std::{borrow::Cow, cell::OnceCell};
 use cgmath::*;
 
 use crate::{
-    element::{Bounds, Font, RectSize, TextElement},
+    Bounds, CanvasRef, Font, RectSize, RenderPass, Rgba, UiContext, View, element::TextElement,
     property,
-    view::{RenderPass, UiContext, View},
-    wgpu_utils::Rgba,
 };
 
 #[derive(Debug)]
@@ -140,11 +138,7 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for TextView<'cx> {
         self.apply_bounds_(bounds);
     }
 
-    fn prepare_for_drawing(
-        &mut self,
-        ui_context: &UiContext<UiState>,
-        canvas: &crate::wgpu_utils::CanvasRef,
-    ) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, canvas: &CanvasRef) {
         let raw = self.raw.get_or_init(|| {
             self.text_needs_update = false; // `create_text` updates the text
             ui_context

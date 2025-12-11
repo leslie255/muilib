@@ -8,21 +8,17 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::{
-    element::{Bounds, RectSize},
-    mouse_event::MouseEventRouter,
-    resources::AppResources,
-    theme::{ButtonKind, Theme},
-    view::{
-        ButtonView, ImageView, RectView, SpreadAxis, StackAlignment, StackPaddingType, StackView,
-        TextView, UiContext, View, ViewExt as _, ZStackView, view_lists::*,
-    },
-    wgpu_utils::{Canvas as _, CanvasRef, Srgb, Srgba, WindowCanvas},
+use crate::theme::{ButtonKind, Theme};
+
+use uitest::{
+    AppResources, Bounds, ButtonView, Canvas as _, CanvasRef, EventRouter, ImageView, RectSize,
+    RectView, SpreadAxis, Srgb, Srgba, StackAlignment, StackPaddingType, StackView, TextView,
+    UiContext, View, ViewExt as _, WindowCanvas, ZStackView, view_lists::*,
 };
 
 pub(crate) struct Application<'cx> {
     resources: &'cx AppResources,
-    mouse_event_router: Arc<MouseEventRouter<'cx, UiState<'cx>>>,
+    mouse_event_router: Arc<EventRouter<'cx, UiState<'cx>>>,
     window: Option<Arc<Window>>,
     ui: Option<UiState<'cx>>,
 }
@@ -31,7 +27,7 @@ impl<'cx> Application<'cx> {
     pub fn new(resources: &'cx AppResources) -> Self {
         Self {
             resources,
-            mouse_event_router: Arc::new(MouseEventRouter::new(Bounds::default())),
+            mouse_event_router: Arc::new(EventRouter::new(Bounds::default())),
             window: None,
             ui: None,
         }
@@ -95,7 +91,7 @@ impl<'cx> UiState<'cx> {
     pub fn create(
         resources: &'cx AppResources,
         window: Arc<Window>,
-        event_router: Arc<MouseEventRouter<'cx, Self>>,
+        event_router: Arc<EventRouter<'cx, Self>>,
     ) -> Self {
         let (ui_context, window_canvas) =
             UiContext::create_for_window(resources, Arc::clone(&window), event_router)

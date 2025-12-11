@@ -1,7 +1,4 @@
-use crate::{
-    element::{Bounds, RectSize},
-    wgpu_utils::CanvasRef,
-};
+use crate::{Bounds, CanvasRef, RectSize};
 
 mod axis;
 mod button;

@@ -1,10 +1,6 @@
 #![allow(dead_code)]
 
-use crate::{
-    element::LineWidth,
-    view::{ButtonStateStyle, ButtonStyle},
-    wgpu_utils::Srgb,
-};
+use uitest::{ButtonStateStyle, ButtonStyle, Srgb, LineWidth};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {

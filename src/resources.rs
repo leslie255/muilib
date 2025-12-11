@@ -9,10 +9,7 @@ use derive_more::{Display, Error, From};
 use image::{ImageError, RgbaImage};
 use serde::de::DeserializeOwned;
 
-use crate::{
-    element::{ImageRef, RectSize},
-    utils::*,
-};
+use crate::{ImageRef, RectSize, utils::*};
 
 #[derive(Debug, Display, From, Error)]
 pub enum LoadResourceError {

@@ -1,11 +1,8 @@
 use cgmath::*;
 
 use crate::{
-    element::{Bounds, LineWidth, RectElement, RectSize},
-    property,
+    Bounds, CanvasRef, LineWidth, RectSize, RenderPass, Rgba, View, element::RectElement, property,
     utils::*,
-    view::{RenderPass, View},
-    wgpu_utils::{CanvasRef, Rgba},
 };
 
 use super::UiContext;

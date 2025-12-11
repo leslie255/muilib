@@ -1,9 +1,6 @@
 use crate::{
-    element::{Bounds, ImageElement, RectSize, Texture2d},
-    property,
-    utils::*,
-    view::{RenderPass, UiContext, View},
-    wgpu_utils::CanvasRef,
+    Bounds, CanvasRef, RectSize, RenderPass, Texture2d, UiContext, View, element::ImageElement,
+    property, utils::*,
 };
 
 #[derive(Debug, Clone)]

@@ -11,15 +11,12 @@ use pollster::FutureExt as _;
 use winit::window::Window;
 
 use crate::{
-    element::{
-        Bounds, Font, ImageRef, ImageRenderer, InstancedRectRenderer, RectRenderer, RectSize,
-        TextRenderer, Texture2d,
-    },
-    mouse_event::MouseEventRouter,
+    Bounds, Canvas as _, CanvasFormat, CanvasRef, EventRouter, Font, ImageRef, RectSize, Rgba,
+    Texture2d, WindowCanvas,
+    element::{ImageRenderer, InstancedRectRenderer, RectRenderer, TextRenderer},
     resources::{AppResources, LoadResourceError},
     utils::*,
     view::View,
-    wgpu_utils::{Canvas as _, CanvasFormat, CanvasRef, Rgba, WindowCanvas},
 };
 
 fn init_wgpu() -> (wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue) {
@@ -46,14 +43,14 @@ pub struct UiContext<'cx, UiState> {
     instanced_rect_renderer: InstancedRectRenderer<'cx>,
     text_renderer: TextRenderer<'cx>,
     image_renderer: ImageRenderer<'cx>,
-    mouse_event_router: Arc<MouseEventRouter<'cx, UiState>>,
+    mouse_event_router: Arc<EventRouter<'cx, UiState>>,
 }
 
 impl<'cx, UiState> UiContext<'cx, UiState> {
     pub fn create_for_window(
         resources: &'cx AppResources,
         window: Arc<Window>,
-        event_router: Arc<MouseEventRouter<'cx, UiState>>,
+        event_router: Arc<EventRouter<'cx, UiState>>,
     ) -> Result<(Self, WindowCanvas<'static>), UiContextCreationError> {
         let (instance, adapter, device, queue) = init_wgpu();
         let window_canvas =
@@ -73,7 +70,7 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         queue: wgpu::Queue,
         resources: &'cx AppResources,
         canvas_format: CanvasFormat,
-        mouse_event_router: Arc<MouseEventRouter<'cx, UiState>>,
+        mouse_event_router: Arc<EventRouter<'cx, UiState>>,
     ) -> Result<Self, UiContextCreationError> {
         macro_rules! try_ {
             ($stage:expr, $x:expr $(,)?) => {
@@ -179,7 +176,7 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         &self.image_renderer
     }
 
-    pub fn mouse_event_router(&self) -> &Arc<MouseEventRouter<'cx, UiState>> {
+    pub fn mouse_event_router(&self) -> &Arc<EventRouter<'cx, UiState>> {
         &self.mouse_event_router
     }
 

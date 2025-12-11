@@ -12,7 +12,7 @@ use cgmath::*;
 
 use winit::event::{MouseButton, WindowEvent};
 
-use crate::{element::Bounds, utils::*};
+use crate::{Bounds, utils::*};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseEventKind {
@@ -50,7 +50,7 @@ pub trait MouseEventListener<UiState>: Send + Sync {
     fn mouse_event(&self, event: MouseEvent, ui_state: &mut UiState);
 }
 
-pub struct MouseEventRouter<'cx, UiState> {
+pub struct EventRouter<'cx, UiState> {
     /// `None` if we don't know the position of the cursor.
     cursor_position: Mutex<Option<Point2<f32>>>,
     /// Using `u64` as storage for `f64`, as rust doesn't have an `AtomicF64`.
@@ -66,7 +66,7 @@ pub struct MouseEventRouter<'cx, UiState> {
     button_states: Mutex<[bool; 5]>,
 }
 
-impl<'cx, UiState> MouseEventRouter<'cx, UiState> {
+impl<'cx, UiState> EventRouter<'cx, UiState> {
     pub fn new(bounds: Bounds<f32>) -> Self {
         Self {
             cursor_position: Mutex::new(None),
@@ -291,7 +291,7 @@ struct Listener<'cx, UiState> {
 
 /// Unregisters the listener when dropped.
 pub struct ListenerHandle<'cx, UiState> {
-    router: Weak<MouseEventRouter<'cx, UiState>>,
+    router: Weak<EventRouter<'cx, UiState>>,
     index: usize,
 }
 

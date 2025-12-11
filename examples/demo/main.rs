@@ -1,21 +1,13 @@
-extern crate derive;
-
-pub mod app;
-pub mod element;
-pub mod mouse_event;
-pub mod resources;
-pub mod view;
-pub mod wgpu_utils;
-
-pub(crate) mod theme;
-#[macro_use]
-pub(crate) mod utils;
-
 use std::path::PathBuf;
 
 use winit::event_loop::EventLoop;
 
-use crate::{app::Application, resources::AppResources};
+use uitest::AppResources;
+
+use crate::app::Application;
+
+mod theme;
+mod app;
 
 fn main() {
     env_logger::init();

@@ -1,11 +1,8 @@
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 
 use crate::{
-    computed_property,
-    element::{Bounds, RectSize},
+    Bounds, CanvasRef, RectSize, RectView, RenderPass, Rgba, UiContext, View, computed_property,
     property,
-    view::{RectView, RenderPass, UiContext, View},
-    wgpu_utils::{CanvasRef, Rgba},
 };
 
 /// An empty view for just leaving a bit of space empty.

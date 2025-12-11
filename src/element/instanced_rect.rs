@@ -2,11 +2,10 @@ use bytemuck::{Pod, Zeroable};
 use cgmath::*;
 
 use crate::{
-    AppResources,
-    element::{Bounds, LineWidth},
+    AppResources, Bounds, CanvasFormat, LineWidth, Rgba,
     resources::LoadResourceError,
     utils::*,
-    wgpu_utils::{AsBindGroup, CanvasFormat, Rgba, UniformBuffer, Vertex, VertexBuffer},
+    wgpu_utils::{AsBindGroup, UniformBuffer, Vertex, VertexBuffer},
 };
 
 #[derive(Debug, Clone)]

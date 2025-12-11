@@ -3,12 +3,8 @@ use std::marker::PhantomData;
 use cgmath::*;
 
 use crate::{
-    element::{Bounds, RectSize},
-    property,
-    view::{
-        Axis, BoundsAxisExt as _, Point2AxisExt as _, RectSizeAxisExt as _, RectView, RenderPass, View, ViewList
-    },
-    wgpu_utils::{CanvasRef, Rgba},
+    Axis, Bounds, BoundsAxisExt as _, CanvasRef, Point2AxisExt as _, RectSize,
+    RectSizeAxisExt as _, RectView, RenderPass, Rgba, View, ViewList, property,
 };
 
 use super::{ControlFlow, UiContext};

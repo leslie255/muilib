@@ -14,11 +14,10 @@ use cgmath::*;
 use winit::event::MouseButton;
 
 use crate::{
-    element::{Bounds, LineWidth, RectSize},
-    mouse_event::{self, MouseEvent, MouseEventKind, MouseEventListener},
+    CanvasRef, ListenerHandle, MouseEvent, MouseEventKind, MouseEventListener, RectView,
+    RenderPass, Srgb, Srgba, TextView, UiContext, View,
+    Bounds, LineWidth, RectSize,
     utils::AtomicBoolExt as _,
-    view::{RectView, RenderPass, TextView, UiContext, View},
-    wgpu_utils::{CanvasRef, Srgb, Srgba},
 };
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -142,7 +141,7 @@ pub struct ButtonView<'cx, UiState: 'cx> {
     /// yet. (Would be updated in the next `prepare_for_drawing` call).
     new_callback: Option<Box<dyn ButtonCallback<'cx, UiState>>>,
     /// `None` until the first `prepare_for_drawing`.
-    listener_handle: Option<mouse_event::ListenerHandle<'cx, UiState>>,
+    listener_handle: Option<ListenerHandle<'cx, UiState>>,
 }
 
 impl<'cx, UiState> ButtonView<'cx, UiState> {

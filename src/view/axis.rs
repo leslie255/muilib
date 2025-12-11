@@ -2,7 +2,7 @@
 
 use cgmath::*;
 
-use crate::element::{Bounds, RectSize};
+use crate::{Bounds, RectSize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Axis {
