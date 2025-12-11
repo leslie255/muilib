@@ -10,7 +10,7 @@ use winit::{
 
 use crate::theme::{ButtonKind, Theme};
 
-use uitest::{
+use muilib::{
     AppResources, Bounds, ButtonView, Canvas as _, CanvasRef, ContainerPadding, EventRouter,
     ImageView, RectSize, RectView, Rgba, Srgb, Srgba, StackAlignment, StackView,
     TextView, UiContext, View, ViewExt as _, WindowCanvas, ZStackView, view_lists::*,

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use winit::event_loop::EventLoop;
 
-use uitest::AppResources;
+use muilib::AppResources;
 
 use crate::app::Application;
 

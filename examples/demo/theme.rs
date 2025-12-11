@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use uitest::{ButtonStateStyle, ButtonStyle, Srgb, LineWidth};
+use muilib::{ButtonStateStyle, ButtonStyle, Srgb, LineWidth};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {

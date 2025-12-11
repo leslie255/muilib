@@ -1322,6 +1322,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "muilib"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "cgmath",
+ "derive",
+ "derive_more",
+ "env_logger",
+ "image",
+ "log",
+ "pollster",
+ "serde",
+ "serde_json",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
 name = "naga"
 version = "27.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2502,24 +2520,6 @@ name = "ttf-parser"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
-
-[[package]]
-name = "uitest"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "cgmath",
- "derive",
- "derive_more",
- "env_logger",
- "image",
- "log",
- "pollster",
- "serde",
- "serde_json",
- "wgpu",
- "winit",
-]
 
 [[package]]
 name = "unicode-ident"
