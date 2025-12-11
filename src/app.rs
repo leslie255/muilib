@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use cgmath::*;
-use pollster::FutureExt as _;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -11,16 +9,15 @@ use winit::{
 };
 
 use crate::{
-    element::{Bounds, RectSize, Texture2d},
+    element::{Bounds, RectSize},
     mouse_event::MouseEventRouter,
     resources::AppResources,
     theme::{ButtonKind, Theme},
-    utils::*,
     view::{
-        ButtonView, ImageView, RectView, SpreadAxis, StackPaddingType, StackView, TextView,
-        UiContext, View, ViewExt as _, StackAlignment, ZStackView, view_lists::*,
+        ButtonView, ImageView, RectView, SpreadAxis, StackAlignment, StackPaddingType, StackView,
+        TextView, UiContext, View, ViewExt as _, ZStackView, view_lists::*,
     },
-    wgpu_utils::{Canvas as _, CanvasView, Srgb, Srgba, WindowCanvas},
+    wgpu_utils::{Canvas as _, CanvasRef, Srgb, Srgba, WindowCanvas},
 };
 
 pub(crate) struct Application<'cx> {
@@ -87,27 +84,10 @@ impl<'cx> ApplicationHandler for Application<'cx> {
     }
 }
 
-fn init_wgpu() -> (wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue) {
-    let instance = wgpu::Instance::new(&the_default());
-    let adapter = instance.request_adapter(&the_default()).block_on().unwrap();
-    let features = wgpu::FeaturesWGPU::POLYGON_MODE_LINE;
-    let (device, queue) = adapter
-        .request_device(&wgpu::DeviceDescriptor {
-            required_features: features.into(),
-            ..the_default()
-        })
-        .block_on()
-        .unwrap();
-    (instance, adapter, device, queue)
-}
-
 struct UiState<'cx> {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
     window: Arc<Window>,
     window_canvas: WindowCanvas<'static>,
     ui_context: UiContext<'cx, Self>,
-    background_rect_view: RectView,
     root_view: Box<dyn View<'cx, Self>>,
 }
 
@@ -117,29 +97,16 @@ impl<'cx> UiState<'cx> {
         window: Arc<Window>,
         event_router: Arc<MouseEventRouter<'cx, Self>>,
     ) -> Self {
-        let (instance, adapter, device, queue) = init_wgpu();
-        let window_canvas =
-            WindowCanvas::create_for_window(&instance, &adapter, &device, window.clone());
+        let (ui_context, window_canvas) =
+            UiContext::create_for_window(resources, Arc::clone(&window), event_router)
+                .unwrap_or_else(|e| panic!("{e}"));
 
-        let ui_context = UiContext::create(
-            &device,
-            &queue,
-            resources,
-            window_canvas.format(),
-            event_router,
-        )
-        .unwrap_or_else(|e| panic!("{e}"));
-
-        let image_ref = resources.load_image("images/pfp.png").unwrap();
-        let texture = Texture2d::create(&device, &queue, image_ref);
+        let image = resources.load_image("images/pfp.png").unwrap();
+        let texture = ui_context.create_texture(image);
 
         let mut self_ = Self {
-            device,
-            queue,
             window,
             window_canvas,
-            background_rect_view: the_default::<RectView>()
-                .with_fill_color(Theme::DEFAULT.primary_background()),
             root_view: StackView::horizontal(ViewList1::new(
                 StackView::horizontal(ViewList3::new(
                     StackView::vertical(ViewList2::new(
@@ -147,7 +114,7 @@ impl<'cx> UiState<'cx> {
                         ButtonView::new(&ui_context)
                             .with_size(RectSize::new(128., 64.))
                             .with_style(
-                                Theme::DEFAULT.button_style(ButtonKind::Mundane).scaled(2.),
+                                Theme::DEFAULT.button_style(ButtonKind::Primary).scaled(2.),
                             ),
                     ))
                     .with_alignment(StackAlignment::Leading)
@@ -180,18 +147,18 @@ impl<'cx> UiState<'cx> {
                 .with_fixed_padding(10.),
             ))
             .with_padding_type(StackPaddingType::Omnipadded)
-            .with_background_color(Srgb::from_hex(0xFF8080))
-            .into_ratio_padded_view()
+            .with_background_color(Theme::DEFAULT.tertiary_background())
+            .into_ratio_container_view()
             .with_ratio_top(0.2)
             .with_ratio_left(0.2)
-            .with_background_color(Srgb::from_hex(0xC040FF))
+            .with_background_color(Theme::DEFAULT.secondary_background())
             .into_spread_view(SpreadAxis::Both)
             .into_container_view()
             .with_padding_top(20.)
             .with_padding_bottom(20.)
             .with_padding_left(80.)
             .with_padding_right(80.)
-            .with_background_color(Srgb::from_hex(0x8080FF))
+            .with_background_color(Theme::DEFAULT.primary_background())
             .into_box_dyn_view(),
             ui_context,
         };
@@ -199,53 +166,15 @@ impl<'cx> UiState<'cx> {
         self_
     }
 
-    fn frame(&mut self, canvas: CanvasView) {
-        assert!(
-            canvas.depth_stencil_texture_view.is_none(),
-            "TODO: drawing with depth stencil buffer"
-        );
-        let mut encoder = self.device.create_command_encoder(&the_default());
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &canvas.color_texture_view,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: wgpu::StoreOp::Store,
-                },
-                depth_slice: None,
-                resolve_target: None,
-            })],
-            ..the_default()
-        });
-
-        // let seconds = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs_f64();
-        // let wave = ((f64::sin(seconds * std::f64::consts::TAU / 4.) + 1.) * 0.5) as f32;
-
-        self.ui_context.prepare_view_bounded(
-            &self.device,
-            &self.queue,
-            &canvas,
-            canvas.bounds(),
-            &mut self.background_rect_view,
-        );
-
-        self.ui_context.prepare_view(
-            &self.device,
-            &self.queue,
-            &canvas,
-            point2(0., 0.),
-            self.root_view.as_mut(),
-        );
+    fn frame(&mut self, canvas: CanvasRef) {
+        let mut render_pass = self
+            .ui_context
+            .begin_render_pass(&canvas, Theme::DEFAULT.primary_background());
 
         self.ui_context
-            .draw_view(&mut render_pass, &self.background_rect_view);
-
+            .prepare_view_bounded(&canvas, canvas.bounds(), self.root_view.as_mut());
         self.ui_context
             .draw_view(&mut render_pass, self.root_view.as_ref());
-
-        drop(render_pass);
-
-        self.queue.submit([encoder.finish()]);
     }
 
     fn window_event(
@@ -257,7 +186,7 @@ impl<'cx> UiState<'cx> {
         match event {
             WindowEvent::Resized(_) => self.window_resized(),
             WindowEvent::RedrawRequested => {
-                let canvas_view = self.window_canvas.begin_drawing().unwrap();
+                let canvas_view = self.window_canvas.create_ref().unwrap();
                 self.frame(canvas_view);
                 self.window.pre_present_notify();
                 self.window_canvas.finish_drawing().unwrap();
@@ -279,7 +208,7 @@ impl<'cx> UiState<'cx> {
 
     fn window_resized(&mut self) {
         self.window_canvas.reconfigure_for_size(
-            &self.device,
+            self.ui_context.wgpu_device(),
             self.window.inner_size(),
             self.window.scale_factor(),
             None,

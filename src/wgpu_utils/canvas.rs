@@ -15,7 +15,7 @@ use crate::{
 pub trait Canvas {
     fn format(&self) -> CanvasFormat;
     fn logical_size(&self) -> RectSize<f32>;
-    fn begin_drawing(&self) -> Result<CanvasView, Box<dyn Error>>;
+    fn create_ref(&self) -> Result<CanvasRef, Box<dyn Error>>;
     fn finish_drawing(&self) -> Result<(), Box<dyn Error>>;
 }
 
@@ -26,14 +26,14 @@ pub struct CanvasFormat {
 }
 
 #[derive(Debug, Clone)]
-pub struct CanvasView {
+pub struct CanvasRef {
     pub color_texture_view: wgpu::TextureView,
     pub depth_stencil_texture_view: Option<wgpu::TextureView>,
     pub logical_size: RectSize<f32>,
     pub projection: Matrix4<f32>,
 }
 
-impl CanvasView {
+impl CanvasRef {
     pub fn new(
         color_texture_view: wgpu::TextureView,
         depth_stencil_texture_view: Option<wgpu::TextureView>,
@@ -92,8 +92,8 @@ impl Canvas for TextureCanvas {
         self.logical_size
     }
 
-    fn begin_drawing(&self) -> Result<CanvasView, Box<dyn Error>> {
-        Ok(CanvasView::new(
+    fn create_ref(&self) -> Result<CanvasRef, Box<dyn Error>> {
+        Ok(CanvasRef::new(
             self.color_texture.create_view(&the_default()),
             self.depth_stencil_texture
                 .as_ref()
@@ -233,7 +233,7 @@ impl<'a> Canvas for WindowCanvas<'a> {
         self.logical_size
     }
 
-    fn begin_drawing(&self) -> Result<CanvasView, Box<dyn Error>> {
+    fn create_ref(&self) -> Result<CanvasRef, Box<dyn Error>> {
         let mut surface_texture_ = self.surface_texture.lock().unwrap();
         if surface_texture_.is_some() {
             return Err(Box::new(WindowBeginDrawingError::IsCurrentlyDrawing));
@@ -251,7 +251,7 @@ impl<'a> Canvas for WindowCanvas<'a> {
             .depth_stencil_texture
             .as_ref()
             .map(|texture| texture.create_view(&the_default()));
-        Ok(CanvasView::new(
+        Ok(CanvasRef::new(
             color_texture_view,
             depth_stencil_texture_view,
             self.logical_size,

@@ -4,8 +4,8 @@ use crate::{
     computed_property,
     element::{Bounds, RectSize},
     property,
-    view::{RectView, UiContext, View},
-    wgpu_utils::{CanvasView, Rgba},
+    view::{RectView, RenderPass, UiContext, View},
+    wgpu_utils::{CanvasRef, Rgba},
 };
 
 /// An empty view for just leaving a bit of space empty.
@@ -30,23 +30,16 @@ impl SpacerView {
     }
 }
 
-impl<UiState> View<'_, UiState> for SpacerView {
+impl<'cx, UiState: 'cx> View<'cx, UiState> for SpacerView {
     fn preferred_size(&mut self) -> RectSize<f32> {
         self.size
     }
 
     fn apply_bounds(&mut self, _bounds: Bounds<f32>) {}
 
-    fn prepare_for_drawing(
-        &mut self,
-        _view_context: &UiContext<UiState>,
-        _device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-        _canvas: &CanvasView,
-    ) {
-    }
+    fn prepare_for_drawing(&mut self, _view_context: &UiContext<UiState>, _canvas: &CanvasRef) {}
 
-    fn draw(&self, _view_context: &UiContext<UiState>, _render_pass: &mut wgpu::RenderPass) {}
+    fn draw(&self, _view_context: &UiContext<UiState>, _render_pass: &mut RenderPass) {}
 }
 
 pub trait ViewExt<'cx, UiState: 'cx>: View<'cx, UiState> + Sized {
@@ -62,7 +55,7 @@ pub trait ViewExt<'cx, UiState: 'cx>: View<'cx, UiState> + Sized {
         ContainerView::new(self)
     }
 
-    fn into_ratio_padded_view(self) -> RatioContainerView<Self> {
+    fn into_ratio_container_view(self) -> RatioContainerView<Self> {
         RatioContainerView::new(self)
     }
 }
@@ -89,6 +82,7 @@ pub struct SpreadView<Subview> {
 
 impl<'cx, UiState, Subview> View<'cx, UiState> for SpreadView<Subview>
 where
+    UiState: 'cx,
     Subview: View<'cx, UiState>,
 {
     fn preferred_size(&mut self) -> RectSize<f32> {
@@ -104,18 +98,11 @@ where
         self.subview.apply_bounds(bounds)
     }
 
-    fn prepare_for_drawing(
-        &mut self,
-        ui_context: &UiContext<'cx, UiState>,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        canvas: &CanvasView,
-    ) {
-        self.subview
-            .prepare_for_drawing(ui_context, device, queue, canvas)
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx, UiState>, canvas: &CanvasRef) {
+        self.subview.prepare_for_drawing(ui_context, canvas)
     }
 
-    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut wgpu::RenderPass) {
+    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut RenderPass) {
         self.subview.draw(ui_context, render_pass)
     }
 }
@@ -270,6 +257,7 @@ impl<Subview> ContainerView<Subview> {
 
 impl<'cx, UiState, Subview> View<'cx, UiState> for ContainerView<Subview>
 where
+    UiState: 'cx,
     Subview: View<'cx, UiState>,
 {
     fn preferred_size(&mut self) -> RectSize<f32> {
@@ -307,22 +295,14 @@ where
         self.subview.apply_bounds(subview_bounds);
     }
 
-    fn prepare_for_drawing(
-        &mut self,
-        ui_context: &UiContext<'cx, UiState>,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        canvas: &CanvasView,
-    ) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx, UiState>, canvas: &CanvasRef) {
         if self.background_rect.fill_color().a != 0. {
-            self.background_rect
-                .prepare_for_drawing(ui_context, device, queue, canvas);
+            self.background_rect.prepare_for_drawing(ui_context, canvas);
         }
-        self.subview
-            .prepare_for_drawing(ui_context, device, queue, canvas);
+        self.subview.prepare_for_drawing(ui_context, canvas);
     }
 
-    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut wgpu::RenderPass) {
+    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut RenderPass) {
         if self.background_rect.fill_color().a != 0. {
             self.background_rect.draw(ui_context, render_pass);
         }
@@ -441,6 +421,7 @@ impl<Subview> RatioContainerView<Subview> {
 
 impl<'cx, UiState, Subview> View<'cx, UiState> for RatioContainerView<Subview>
 where
+    UiState: 'cx,
     Subview: View<'cx, UiState>,
 {
     fn preferred_size(&mut self) -> RectSize<f32> {
@@ -472,22 +453,14 @@ where
         }
     }
 
-    fn prepare_for_drawing(
-        &mut self,
-        ui_context: &UiContext<'cx, UiState>,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        canvas: &CanvasView,
-    ) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx, UiState>, canvas: &CanvasRef) {
         if self.background_rect.fill_color().a != 0. {
-            self.background_rect
-                .prepare_for_drawing(ui_context, device, queue, canvas);
+            self.background_rect.prepare_for_drawing(ui_context, canvas);
         }
-        self.subview
-            .prepare_for_drawing(ui_context, device, queue, canvas)
+        self.subview.prepare_for_drawing(ui_context, canvas)
     }
 
-    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut wgpu::RenderPass) {
+    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut RenderPass) {
         if self.background_rect.fill_color().a != 0. {
             self.background_rect.draw(ui_context, render_pass);
         }

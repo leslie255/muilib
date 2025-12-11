@@ -5,7 +5,7 @@ use cgmath::*;
 use crate::{
     element::{Bounds, Font, RectSize, TextElement},
     property,
-    view::{UiContext, View},
+    view::{RenderPass, UiContext, View},
     wgpu_utils::Rgba,
 };
 
@@ -131,7 +131,7 @@ impl<'cx> TextView<'cx> {
     }
 }
 
-impl<'cx, UiState> View<'cx, UiState> for TextView<'cx> {
+impl<'cx, UiState: 'cx> View<'cx, UiState> for TextView<'cx> {
     fn preferred_size(&mut self) -> RectSize<f32> {
         self.size()
     }
@@ -143,24 +143,24 @@ impl<'cx, UiState> View<'cx, UiState> for TextView<'cx> {
     fn prepare_for_drawing(
         &mut self,
         ui_context: &UiContext<UiState>,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        canvas: &crate::wgpu_utils::CanvasView,
+        canvas: &crate::wgpu_utils::CanvasRef,
     ) {
         let raw = self.raw.get_or_init(|| {
             self.text_needs_update = false; // `create_text` updates the text
-            ui_context.text_renderer().create_text(device, &self.text)
+            ui_context
+                .text_renderer()
+                .create_text(ui_context.wgpu_device(), &self.text)
         });
         // Projection always needs to be set, since `needs_update` does not keep track of canvas
         // size.
-        raw.set_projection(queue, canvas.projection);
+        raw.set_projection(ui_context.wgpu_queue(), canvas.projection);
         if self.needs_update {
             self.needs_update = false;
             let this = &raw;
             let origin = self.origin;
             let font_size = self.font_size;
             this.set_model_view(
-                queue,
+                ui_context.wgpu_queue(),
                 Matrix4::from_translation(origin.to_vec().extend(0.))
                     * Matrix4::from_nonuniform_scale(
                         self.squeeze_horizontal * font_size,
@@ -168,21 +168,21 @@ impl<'cx, UiState> View<'cx, UiState> for TextView<'cx> {
                         1.,
                     ),
             );
-            raw.set_fg_color(queue, self.fg_color);
-            raw.set_bg_color(queue, self.bg_color);
+            raw.set_fg_color(ui_context.wgpu_queue(), self.fg_color);
+            raw.set_bg_color(ui_context.wgpu_queue(), self.bg_color);
         }
         if self.text_needs_update {
             self.text_needs_update = false;
             let raw = self.raw.get_mut().unwrap();
             ui_context
                 .text_renderer()
-                .update_text(device, raw, &self.text);
+                .update_text(ui_context.wgpu_device(), raw, &self.text);
         }
     }
 
-    fn draw(&self, ui_context: &UiContext<UiState>, render_pass: &mut wgpu::RenderPass) {
+    fn draw(&self, ui_context: &UiContext<UiState>, render_pass: &mut RenderPass) {
         ui_context
             .text_renderer()
-            .draw_text(render_pass, self.raw.get().unwrap());
+            .draw_text(render_pass.wgpu_render_pass(), self.raw.get().unwrap());
     }
 }

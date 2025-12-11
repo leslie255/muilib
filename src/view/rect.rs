@@ -4,8 +4,8 @@ use crate::{
     element::{Bounds, LineWidth, RectElement, RectSize},
     property,
     utils::*,
-    view::View,
-    wgpu_utils::{CanvasView, Rgba},
+    view::{RenderPass, View},
+    wgpu_utils::{CanvasRef, Rgba},
 };
 
 use super::UiContext;
@@ -99,7 +99,7 @@ impl RectView {
     }
 }
 
-impl<UiState> View<'_, UiState> for RectView {
+impl<'cx, UiState: 'cx> View<'cx, UiState> for RectView {
     fn preferred_size(&mut self) -> RectSize<f32> {
         self.size
     }
@@ -108,32 +108,30 @@ impl<UiState> View<'_, UiState> for RectView {
         self.apply_bounds_(bounds);
     }
 
-    fn prepare_for_drawing(
-        &mut self,
-        ui_context: &UiContext<UiState>,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        canvas: &CanvasView,
-    ) {
-        let raw = self
-            .raw
-            .get_or_insert_with(|| ui_context.rect_renderer().create_rect(device));
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, canvas: &CanvasRef) {
+        let raw = self.raw.get_or_insert_with(|| {
+            ui_context
+                .rect_renderer()
+                .create_rect(ui_context.wgpu_device())
+        });
         // Projection always needs to be set, since `needs_update` does not keep track of canvas
         // size.
-        raw.set_projection(queue, canvas.projection);
+        raw.set_projection(ui_context.wgpu_queue(), canvas.projection);
         if self.needs_update {
             self.needs_update = false;
-            raw.set_parameters(queue, self.bounds, self.line_width);
-            raw.set_fill_color(queue, self.fill_color);
-            raw.set_line_color(queue, self.line_color);
+            raw.set_parameters(ui_context.wgpu_queue(), self.bounds, self.line_width);
+            raw.set_fill_color(ui_context.wgpu_queue(), self.fill_color);
+            raw.set_line_color(ui_context.wgpu_queue(), self.line_color);
         }
     }
 
-    fn draw(&self, ui_context: &UiContext<UiState>, render_pass: &mut wgpu::RenderPass) {
+    fn draw(&self, ui_context: &UiContext<UiState>, render_pass: &mut RenderPass) {
         if let Some(raw) = self.raw.as_ref()
             && !self.needs_update
         {
-            ui_context.rect_renderer().draw_rect(render_pass, raw);
+            ui_context
+                .rect_renderer()
+                .draw_rect(render_pass.wgpu_render_pass(), raw);
         } else {
             log::warn!("`<RectView as View>::draw` is called without `prepare_for_drawing`");
         }

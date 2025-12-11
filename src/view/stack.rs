@@ -6,10 +6,9 @@ use crate::{
     element::{Bounds, RectSize},
     property,
     view::{
-        Axis, BoundsAxisExt as _, Point2AxisExt as _, RectSizeAxisExt as _, RectView, View,
-        ViewList,
+        Axis, BoundsAxisExt as _, Point2AxisExt as _, RectSizeAxisExt as _, RectView, RenderPass, View, ViewList
     },
-    wgpu_utils::{CanvasView, Rgba},
+    wgpu_utils::{CanvasRef, Rgba},
 };
 
 use super::{ControlFlow, UiContext};
@@ -213,26 +212,20 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for StackView<'c
     fn prepare_for_drawing(
         &mut self,
         ui_context: &UiContext<'cx, Subviews::UiState>,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        canvas: &CanvasView,
+        canvas: &CanvasRef,
     ) {
         if let Some(background_view) = self.background_view.as_mut()
             && background_view.fill_color().a != 0.
         {
-            background_view.prepare_for_drawing(ui_context, device, queue, canvas);
+            background_view.prepare_for_drawing(ui_context, canvas);
         }
         self.subviews.for_each_subview_mut(|subview| {
-            subview.prepare_for_drawing(ui_context, device, queue, canvas);
+            subview.prepare_for_drawing(ui_context, canvas);
             ControlFlow::Continue
         });
     }
 
-    fn draw(
-        &self,
-        ui_context: &UiContext<'cx, Subviews::UiState>,
-        render_pass: &mut wgpu::RenderPass,
-    ) {
+    fn draw(&self, ui_context: &UiContext<'cx, Subviews::UiState>, render_pass: &mut RenderPass) {
         if let Some(background_view) = self.background_view.as_ref()
             && background_view.fill_color().a != 0.
         {
@@ -346,21 +339,15 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for ZStackView<'
     fn prepare_for_drawing(
         &mut self,
         ui_context: &UiContext<'cx, Subviews::UiState>,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        canvas: &CanvasView,
+        canvas: &CanvasRef,
     ) {
         self.subviews.for_each_subview_mut(|subview| {
-            subview.prepare_for_drawing(ui_context, device, queue, canvas);
+            subview.prepare_for_drawing(ui_context, canvas);
             ControlFlow::Continue
         });
     }
 
-    fn draw(
-        &self,
-        ui_context: &UiContext<'cx, Subviews::UiState>,
-        render_pass: &mut wgpu::RenderPass,
-    ) {
+    fn draw(&self, ui_context: &UiContext<'cx, Subviews::UiState>, render_pass: &mut RenderPass) {
         self.subviews.for_each_subview(|subview| {
             subview.draw(ui_context, render_pass);
             ControlFlow::Continue

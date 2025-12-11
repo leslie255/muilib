@@ -17,8 +17,8 @@ use crate::{
     element::{Bounds, LineWidth, RectSize},
     mouse_event::{self, MouseEvent, MouseEventKind, MouseEventListener},
     utils::AtomicBoolExt as _,
-    view::{RectView, TextView, UiContext, View},
-    wgpu_utils::{CanvasView, Srgb, Srgba},
+    view::{RectView, RenderPass, TextView, UiContext, View},
+    wgpu_utils::{CanvasRef, Srgb, Srgba},
 };
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -283,13 +283,7 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for ButtonView<'cx, UiState> {
         }
     }
 
-    fn prepare_for_drawing(
-        &mut self,
-        ui_context: &UiContext<'cx, UiState>,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        canvas: &CanvasView,
-    ) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx, UiState>, canvas: &CanvasRef) {
         if let Some(callback) = self.new_callback.take() {
             if let Some(dispatch_mut) = Arc::get_mut(&mut self.dispatch) {
                 dispatch_mut.callback = Some(callback);
@@ -313,13 +307,11 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for ButtonView<'cx, UiState> {
         if state_updated {
             self.update_styles();
         }
-        self.rect_view
-            .prepare_for_drawing(ui_context, device, queue, canvas);
-        self.text_view
-            .prepare_for_drawing(ui_context, device, queue, canvas);
+        self.rect_view.prepare_for_drawing(ui_context, canvas);
+        self.text_view.prepare_for_drawing(ui_context, canvas);
     }
 
-    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut wgpu::RenderPass) {
+    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut RenderPass) {
         self.rect_view.draw(ui_context, render_pass);
         self.text_view.draw(ui_context, render_pass);
     }

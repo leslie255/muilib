@@ -1,9 +1,8 @@
 use crate::{
     element::{Bounds, RectSize},
-    wgpu_utils::CanvasView,
+    wgpu_utils::CanvasRef,
 };
 
-mod util_views;
 mod axis;
 mod button;
 mod image;
@@ -11,8 +10,8 @@ mod rect;
 mod stack;
 mod text;
 mod ui_context;
+mod util_views;
 
-pub use util_views::*;
 pub use axis::*;
 pub use button::*;
 pub use image::*;
@@ -20,20 +19,15 @@ pub use rect::*;
 pub use stack::*;
 pub use text::*;
 pub use ui_context::*;
+pub use util_views::*;
 
 pub mod view_lists;
 
-pub trait View<'cx, UiState>: 'cx {
+pub trait View<'cx, UiState: 'cx>: 'cx {
     fn preferred_size(&mut self) -> RectSize<f32>;
     fn apply_bounds(&mut self, bounds: Bounds<f32>);
-    fn prepare_for_drawing(
-        &mut self,
-        ui_context: &UiContext<'cx, UiState>,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        canvas: &CanvasView,
-    );
-    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut wgpu::RenderPass);
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx, UiState>, canvas: &CanvasRef);
+    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut RenderPass);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

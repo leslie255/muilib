@@ -2,8 +2,8 @@ use crate::{
     element::{Bounds, ImageElement, RectSize, Texture2d},
     property,
     utils::*,
-    view::{UiContext, View},
-    wgpu_utils::CanvasView,
+    view::{RenderPass, UiContext, View},
+    wgpu_utils::CanvasRef,
 };
 
 #[derive(Debug, Clone)]
@@ -69,7 +69,7 @@ impl ImageView {
     }
 }
 
-impl<UiState> View<'_, UiState> for ImageView {
+impl<'cx, UiState: 'cx> View<'cx, UiState> for ImageView {
     fn preferred_size(&mut self) -> RectSize<f32> {
         self.size
     }
@@ -78,30 +78,30 @@ impl<UiState> View<'_, UiState> for ImageView {
         self.apply_bounds_(bounds);
     }
 
-    fn prepare_for_drawing(
-        &mut self,
-        ui_context: &UiContext<UiState>,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        canvas: &CanvasView,
-    ) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, canvas: &CanvasRef) {
         if (self.texture_updated || self.raw.is_none())
             && let Some(texture) = self.texture.as_ref()
         {
-            self.raw = Some(ui_context.image_renderer().create_image(device, texture));
+            self.raw = Some(
+                ui_context
+                    .image_renderer()
+                    .create_image(ui_context.wgpu_device(), texture),
+            );
         }
         if let Some(raw) = self.raw.as_ref() {
-            raw.set_projection(queue, canvas.projection);
+            raw.set_projection(ui_context.wgpu_queue(), canvas.projection);
             if self.bounds_updated {
                 self.bounds_updated = false;
-                raw.set_parameters(queue, self.bounds);
+                raw.set_parameters(ui_context.wgpu_queue(), self.bounds);
             }
         }
     }
 
-    fn draw(&self, ui_context: &UiContext<UiState>, render_pass: &mut wgpu::RenderPass) {
+    fn draw(&self, ui_context: &UiContext<UiState>, render_pass: &mut RenderPass) {
         if let Some(raw) = self.raw.as_ref() {
-            ui_context.image_renderer().draw_image(render_pass, raw);
+            ui_context
+                .image_renderer()
+                .draw_image(render_pass.wgpu_render_pass(), raw);
         }
     }
 }
