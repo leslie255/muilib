@@ -1,18 +1,16 @@
 use std::{
     array,
+    collections::{HashMap, HashSet},
     fmt::{self, Debug},
     iter,
-    sync::{
-        Arc, Mutex, MutexGuard, Weak,
-        atomic::{self, AtomicBool, AtomicU64},
-    },
+    sync::{Arc, Mutex, Weak},
 };
 
 use cgmath::*;
 
 use winit::event::{MouseButton, WindowEvent};
 
-use crate::{Bounds, utils::*};
+use crate::Bounds;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseEventKind {
@@ -51,39 +49,49 @@ pub trait MouseEventListener<UiState>: Send + Sync {
 }
 
 pub struct EventRouter<'cx, UiState> {
+    inner: Mutex<EventRouterInner<'cx, UiState>>,
+    dispatch: Arc<EventRouterDispatch>,
+}
+
+struct EventRouterInner<'cx, UiState> {
     /// `None` if we don't know the position of the cursor.
-    cursor_position: Mutex<Option<Point2<f32>>>,
-    /// Using `u64` as storage for `f64`, as rust doesn't have an `AtomicF64`.
-    scale_factor: AtomicU64,
-    bounds: Mutex<Bounds<f32>>,
-    listeners: Mutex<Vec<Option<Listener<'cx, UiState>>>>,
-    /// Flag for when at least one of the listeners have changed their bounds, indicating that
-    /// something in the frame has changed. In this case, we should scan for hovering changes even
-    /// if cursor hasn't moved.
-    bounds_changed: AtomicBool,
+    cursor_position: Option<Point2<f32>>,
+    scale_factor: f64,
+    listeners: Vec<Option<Listener<'cx, UiState>>>,
     /// Track states of mouse buttons.
     /// `true` for pressed state.
-    button_states: Mutex<[bool; 5]>,
+    button_states: [bool; 5],
+}
+
+struct EventRouterDispatch {
+    bounds_updates: Mutex<HashMap<usize, Bounds<f32>>>,
+    /// List of objects to deregister.
+    deregisters: Mutex<HashSet<usize>>,
 }
 
 impl<'cx, UiState> EventRouter<'cx, UiState> {
-    pub fn new(bounds: Bounds<f32>) -> Self {
+    pub fn new() -> Self {
         Self {
-            cursor_position: Mutex::new(None),
-            scale_factor: AtomicU64::new(bytemuck::cast(1.0f64)),
-            bounds: Mutex::new(bounds),
-            listeners: the_default(),
-            bounds_changed: AtomicBool::new(false),
-            button_states: Mutex::new(array::from_fn(|_| false)),
+            inner: Mutex::new(EventRouterInner {
+                cursor_position: None,
+                scale_factor: 1.0f64,
+                listeners: Vec::new(),
+                button_states: array::from_fn(|_| false),
+            }),
+            dispatch: Arc::new(EventRouterDispatch {
+                bounds_updates: Mutex::new(HashMap::new()),
+                deregisters: Mutex::new(HashSet::new()),
+            }),
         }
     }
 
     pub fn register_listener(
-        self: &Arc<Self>,
+        &self,
         bounds: Bounds<f32>,
         listener: impl MouseEventListener<UiState> + 'cx,
-    ) -> ListenerHandle<'cx, UiState> {
-        let mut listeners = self.listeners.lock().unwrap();
+    ) -> ListenerHandle {
+        let mut inner = self.inner.lock().unwrap();
+        let listeners = &mut inner.listeners;
         let index = listeners.len();
         listeners.push(Some(Listener {
             bounds,
@@ -92,58 +100,50 @@ impl<'cx, UiState> EventRouter<'cx, UiState> {
             object: Box::new(listener),
         }));
         ListenerHandle {
-            router: Arc::downgrade(self),
+            router_dispatch: Arc::downgrade(&self.dispatch),
             index,
         }
     }
 
-    fn unregister_listener(&self, index: usize) {
-        let mut listeners = self.listeners.lock().unwrap();
-        listeners[index] = None;
-    }
-
-    fn update_bounds(&self, index: usize, bounds: Bounds<f32>) {
-        let mut listeners = self.listeners.lock().unwrap();
-        listeners[index].as_mut().unwrap().bounds = bounds;
-        self.bounds_changed.store(true, atomic::Ordering::Release);
-    }
-
     fn listeners_iter_mut<'a>(
-        listeners: &'a mut MutexGuard<Vec<Option<Listener<'cx, UiState>>>>,
+        listeners: &'a mut Vec<Option<Listener<'cx, UiState>>>,
     ) -> impl Iterator<Item = &'a mut Listener<'cx, UiState>> + use<'a, 'cx, UiState> {
         listeners.iter_mut().filter_map(Option::as_mut)
     }
 
     #[allow(dead_code)]
     fn listeners_iter<'a>(
-        listeners: &'a MutexGuard<Vec<Option<Listener<'cx, UiState>>>>,
+        listeners: &'a Vec<Option<Listener<'cx, UiState>>>,
     ) -> impl Iterator<Item = &'a Listener<'cx, UiState>> + use<'a, 'cx, UiState> {
         listeners.iter().filter_map(Option::as_ref)
     }
 
     /// Returns if should request redraw.
+    #[must_use = "Make sure to redraw if returns `true`"]
     pub fn window_event(&self, event: &WindowEvent, ui_state: &mut UiState) -> bool {
-        _ = ui_state;
         match event {
             WindowEvent::ScaleFactorChanged {
                 scale_factor,
                 inner_size_writer: _,
             } => {
-                self.set_scale_factor(*scale_factor);
-                self.scan_events(ui_state)
+                let mut inner = self.inner.lock().unwrap();
+                inner.scale_factor = *scale_factor;
+                self.scan_events(ui_state, &mut inner)
             }
             WindowEvent::CursorMoved {
                 device_id: _,
                 position,
             } => {
-                let position_logical = position.to_logical::<f32>(self.get_scale_factor());
+                let mut inner = self.inner.lock().unwrap();
+                let position_logical = position.to_logical::<f32>(inner.scale_factor);
                 let cursor_position = point2(position_logical.x, position_logical.y);
-                self.set_cursor_position(Some(cursor_position));
-                self.scan_events(ui_state)
+                inner.cursor_position = Some(cursor_position);
+                self.scan_events(ui_state, &mut inner)
             }
             WindowEvent::CursorLeft { device_id: _ } => {
-                self.set_cursor_position(None);
-                self.scan_events(ui_state)
+                let mut inner = self.inner.lock().unwrap();
+                inner.cursor_position = None;
+                self.scan_events(ui_state, &mut inner)
             }
             &WindowEvent::MouseInput {
                 device_id: _,
@@ -158,34 +158,60 @@ impl<'cx, UiState> EventRouter<'cx, UiState> {
                     MouseButton::Forward => 4,
                     MouseButton::Other(_) => return false,
                 };
-                let mut button_states = self.button_states.lock().unwrap();
-                button_states[index] = state.is_pressed();
-                drop(button_states);
-                self.scan_events(ui_state)
+                let mut inner = self.inner.lock().unwrap();
+                inner.button_states[index] = state.is_pressed();
+                self.scan_events(ui_state, &mut inner)
             }
-            WindowEvent::RedrawRequested => {
-                let bounds_changed = self
-                    .bounds_changed
-                    .fetch_and(false, atomic::Ordering::AcqRel);
-                if !bounds_changed {
-                    return false;
-                }
-                self.scan_events(ui_state)
-            }
+            // WindowEvent::RedrawRequested => {
+            //     let mut inner = self.inner.lock().unwrap();
+            //     self.scan_events(ui_state, &mut inner)
+            // }
             _ => false,
         }
     }
 
+    fn deregister(&self, inner: &mut EventRouterInner<'cx, UiState>) -> usize {
+        let listeners = &mut inner.listeners;
+        let mut deregisters = self.dispatch.deregisters.lock().unwrap();
+        let count = deregisters.len();
+        for &index in deregisters.iter() {
+            if let Some(listener) = listeners.get_mut(index) {
+                *listener = None;
+            }
+        }
+        deregisters.clear();
+        count
+    }
+
+    fn update_bounds(&self, inner: &mut EventRouterInner<'cx, UiState>) -> usize {
+        let listeners = &mut inner.listeners;
+        let mut bounds_updates = self.dispatch.bounds_updates.lock().unwrap();
+        let count = bounds_updates.len();
+        for (&index, &bounds) in bounds_updates.iter() {
+            if let Some(Some(listener)) = listeners.get_mut(index) {
+                listener.bounds = bounds;
+            }
+        }
+        bounds_updates.clear();
+        count
+    }
+
     /// Returns if should redraw.
-    fn scan_events(&self, ui_state: &mut UiState) -> bool {
-        let Some(cursor_position) = self.get_cursor_position() else {
+    fn scan_events(
+        &self,
+        ui_state: &mut UiState,
+        inner: &mut EventRouterInner<'cx, UiState>,
+    ) -> bool {
+        self.deregister(inner);
+        self.update_bounds(inner);
+        let Some(cursor_position) = inner.cursor_position else {
             return false;
         };
-        let mut listeners_locked = self.listeners.lock().unwrap();
+        let listeners_locked = &mut inner.listeners;
         let mut should_redraw = false;
-        let button_states = self.button_states.lock().unwrap();
+        let button_states = &mut inner.button_states;
         // Scan for button hovering events.
-        for listener in Self::listeners_iter_mut(&mut listeners_locked) {
+        for listener in Self::listeners_iter_mut(listeners_locked) {
             let inside = listener.bounds.contains(cursor_position);
             let is_hovered_before = listener.is_hovered;
             // Scan for hovering changes.
@@ -210,7 +236,7 @@ impl<'cx, UiState> EventRouter<'cx, UiState> {
             // Sanity check in case of future refractors.
             debug_assert!(listener.button_states.len() == button_states.len());
             for (i, (state, listener_state)) in
-                iter::zip(button_states.into_iter(), &mut listener.button_states).enumerate()
+                iter::zip(button_states.iter(), &mut listener.button_states).enumerate()
             {
                 let button = match i {
                     0 => MouseButton::Left,
@@ -220,18 +246,18 @@ impl<'cx, UiState> EventRouter<'cx, UiState> {
                     4 => MouseButton::Back,
                     _ => unreachable!(),
                 };
-                if !state && *listener_state {
+                if !*state && *listener_state {
                     // Button up event.
-                    *listener_state = state;
+                    *listener_state = *state;
                     let event = MouseEvent::new(
                         MouseEventKind::ButtonUp { button, inside },
                         cursor_position,
                     );
                     listener.object.mouse_event(event, ui_state);
                     should_redraw = true;
-                } else if state && !*listener_state && inside {
+                } else if *state && !*listener_state && inside {
                     // Button down event.
-                    *listener_state = state;
+                    *listener_state = *state;
                     let started_inside = is_hovered_before;
                     let event = MouseEvent::new(
                         MouseEventKind::ButtonDown {
@@ -247,34 +273,11 @@ impl<'cx, UiState> EventRouter<'cx, UiState> {
         }
         should_redraw
     }
+}
 
-    pub fn set_bounds(&self, bounds: Bounds<f32>) {
-        *self.bounds.lock().unwrap() = bounds;
-    }
-
-    pub fn get_bounds(&self) -> Bounds<f32> {
-        *self.bounds.lock().unwrap()
-    }
-
-    fn get_scale_factor(&self) -> f64 {
-        let u = self.scale_factor.load(atomic::Ordering::Relaxed);
-        bytemuck::cast(u)
-    }
-
-    fn set_scale_factor(&self, scale_factor: f64) {
-        let u = bytemuck::cast(scale_factor);
-        self.scale_factor.store(u, atomic::Ordering::Relaxed);
-    }
-
-    fn get_cursor_position(&self) -> Option<Point2<f32>> {
-        *self.cursor_position.lock().unwrap()
-    }
-
-    /// Returns old value.
-    fn set_cursor_position(&self, cursor_position: Option<Point2<f32>>) -> Option<Point2<f32>> {
-        let mut cursor_position_ = self.cursor_position.lock().unwrap();
-        *cursor_position_ = cursor_position;
-        *cursor_position_
+impl<'cx, UiState> Default for EventRouter<'cx, UiState> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -290,21 +293,13 @@ struct Listener<'cx, UiState> {
 }
 
 /// Unregisters the listener when dropped.
-pub struct ListenerHandle<'cx, UiState> {
-    router: Weak<EventRouter<'cx, UiState>>,
+#[derive(Clone)]
+pub struct ListenerHandle {
+    router_dispatch: Weak<EventRouterDispatch>,
     index: usize,
 }
 
-impl<'cx, UiState> Clone for ListenerHandle<'cx, UiState> {
-    fn clone(&self) -> Self {
-        Self {
-            router: self.router.clone(),
-            index: self.index,
-        }
-    }
-}
-
-impl<UiState> Debug for ListenerHandle<'_, UiState> {
+impl Debug for ListenerHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ListenerHandle")
             .field("index", &self.index)
@@ -312,18 +307,22 @@ impl<UiState> Debug for ListenerHandle<'_, UiState> {
     }
 }
 
-impl<UiState> Drop for ListenerHandle<'_, UiState> {
+impl Drop for ListenerHandle {
     fn drop(&mut self) {
-        if let Some(router) = self.router.upgrade() {
-            router.unregister_listener(self.index);
+        if let Some(router) = self.router_dispatch.upgrade() {
+            router.deregisters.lock().unwrap().insert(self.index);
         };
     }
 }
 
-impl<'cx, UiState> ListenerHandle<'cx, UiState> {
+impl ListenerHandle {
     pub fn update_bounds(&self, bounds: Bounds<f32>) {
-        if let Some(router) = self.router.upgrade() {
-            router.update_bounds(self.index, bounds);
-        };
+        if let Some(router_dispatch) = self.router_dispatch.upgrade() {
+            router_dispatch
+                .bounds_updates
+                .lock()
+                .unwrap()
+                .insert(self.index, bounds);
+        }
     }
 }

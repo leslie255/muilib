@@ -36,7 +36,6 @@ fn init_wgpu() -> (wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue) {
 
 /// `'cx` is for allowing `UiState` to contain captured lifetimes, which is necessary for
 /// `MouseEventRouter` as it needs to type erase all event listeners.
-#[derive(Clone)]
 pub struct UiContext<'cx, UiState> {
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -187,8 +186,8 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         &self.image_renderer
     }
 
-    pub fn event_router(&self) -> &Arc<EventRouter<'cx, UiState>> {
-        &self.event_router
+    pub fn event_router(&self) -> Arc<EventRouter<'cx, UiState>> {
+        self.event_router.clone()
     }
 
     pub fn prepare_view(

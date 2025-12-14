@@ -120,10 +120,11 @@ pub struct ButtonStateStyle {
     pub line_color: Srgb,
 }
 
-pub trait ButtonCallback<'cx, UiState>: Send + Sync + 'cx {
+pub trait ButtonCallback<'cx, UiState: 'cx>: Send + Sync + 'cx {
     fn callback(&self, ui_state: &mut UiState, event: ButtonEvent);
 }
-impl<'cx, UiState, F: Fn(&mut UiState, ButtonEvent) + Send + Sync + 'cx>
+
+impl<'cx, UiState: 'cx, F: Fn(&mut UiState, ButtonEvent) + Send + Sync + 'cx>
     ButtonCallback<'cx, UiState> for F
 {
     fn callback(&self, ui_state: &mut UiState, event: ButtonEvent) {
@@ -140,7 +141,7 @@ pub struct ButtonView<'cx, UiState: 'cx> {
     /// yet. (Would be updated in the next `prepare_for_drawing` call).
     new_callback: Option<Box<dyn ButtonCallback<'cx, UiState>>>,
     /// `None` until the first `prepare_for_drawing`.
-    listener_handle: Option<ListenerHandle<'cx, UiState>>,
+    listener_handle: Option<ListenerHandle>,
 }
 
 impl<'cx, UiState> ButtonView<'cx, UiState> {
@@ -273,7 +274,6 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for ButtonView<'cx, UiState> {
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        // Assuming text is single-line.
         self.rect_view.apply_bounds_(bounds);
         self.relayout_text();
         if let Some(listener_handle) = self.listener_handle.as_ref() {
@@ -295,11 +295,10 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for ButtonView<'cx, UiState> {
             self.listener_handle = None;
         }
         if self.listener_handle.is_none() {
-            self.listener_handle = Some(
-                ui_context
-                    .event_router()
-                    .register_listener(self.rect_view.bounds(), self.dispatch.clone()),
-            );
+            let listener_handle = ui_context
+                .event_router()
+                .register_listener(self.rect_view.bounds(), self.dispatch.clone());
+            self.listener_handle = Some(listener_handle);
         }
         let state_updated = self.dispatch.state_updated.fetch_set(false, AcqRel);
         if state_updated {

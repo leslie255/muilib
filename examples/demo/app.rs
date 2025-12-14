@@ -11,7 +11,7 @@ use winit::{
 use crate::theme::Theme;
 
 use muilib::{
-    AppResources, Bounds, Canvas as _, CanvasRef, ContainerPadding, EventRouter, ImageView,
+    AppResources, ButtonView, Canvas as _, CanvasRef, ContainerPadding, EventRouter, ImageView,
     LazyApplicationHandler, RectSize, RectView, Rgba, Srgb, Srgba, StackAlignment, StackView,
     UiContext, View, ViewExt as _, WindowCanvas, ZStackView, view_lists::*,
 };
@@ -39,31 +39,19 @@ pub struct App<'cx> {
 
 impl<'cx> LazyApplicationHandler<&'cx AppResources> for App<'cx> {
     fn new(resources: &'cx AppResources, event_loop: &ActiveEventLoop) -> Self {
-        let window = Arc::new(
-            event_loop
-                .create_window(WindowAttributes::default().with_title("UI Test"))
-                .unwrap(),
-        );
-        let window_size_physical = window.inner_size();
-        let window_size_logical = window_size_physical.to_logical::<f32>(window.scale_factor());
-        let event_router = Arc::new(EventRouter::new(Bounds::from_scalars(
-            0.,
-            0.,
-            window_size_logical.width,
-            window_size_logical.height,
-        )));
-        Self::create(resources, window, event_router)
+        let window = event_loop
+            .create_window(WindowAttributes::default().with_title("UI Test"))
+            .unwrap();
+        Self::create(resources, window)
     }
 }
 
 impl<'cx> App<'cx> {
-    pub fn create(
-        resources: &'cx AppResources,
-        window: Arc<Window>,
-        event_router: Arc<EventRouter<'cx, Self>>,
-    ) -> Self {
+    pub fn create(resources: &'cx AppResources, window: Window) -> Self {
+        let window = Arc::new(window);
+        let event_router = Arc::new(EventRouter::new());
         let (ui_context, window_canvas) =
-            UiContext::create_for_window(resources, Arc::clone(&window), event_router)
+            UiContext::create_for_window(resources, window.clone(), event_router.clone())
                 .unwrap_or_else(|e| panic!("{e}"));
 
         let theme = &Theme::DEFAULT;
@@ -74,7 +62,7 @@ impl<'cx> App<'cx> {
         let mut self_ = Self {
             window,
             window_canvas,
-            root_view: StackView::vertical(ViewList3::new(
+            root_view: StackView::vertical(ViewList4::new(
                 ImageView::new(RectSize::new(100., 100.))
                     .with_texture(texture.clone())
                     .overlay_filter(Srgba::from_hex(0xFF000080)),
@@ -99,6 +87,7 @@ impl<'cx> App<'cx> {
                         .overlay_filter(Srgba::from_hex(0xFFFF0080)),
                 ))
                 .with_fixed_padding(10.),
+                ButtonView::new(&ui_context),
             ))
             .with_fixed_padding(10.)
             .with_alignment(StackAlignment::Leading)
@@ -152,6 +141,10 @@ impl<'cx> ApplicationHandler for App<'cx> {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
+        let should_redraw = self.ui_context.event_router().window_event(&event, self);
+        if should_redraw {
+            self.window.request_redraw();
+        }
         match event {
             WindowEvent::Resized(_) => self.window_resized(),
             WindowEvent::RedrawRequested => {
