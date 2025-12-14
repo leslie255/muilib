@@ -4,7 +4,7 @@ use cgmath::*;
 
 use crate::{
     Axis, Bounds, BoundsAxisExt as _, CanvasRef, Point2AxisExt as _, RectSize,
-    RectSizeAxisExt as _, RectView, RenderPass, Rgba, View, ViewList, property,
+    RectSizeAxisExt as _, RectView, RenderPass, Rgba, View, ViewList, computed_property, property,
 };
 
 use super::{ControlFlow, UiContext};
@@ -29,37 +29,38 @@ pub enum StackAlignment {
 pub struct StackView<'cx, Subviews: ViewList<'cx>> {
     axis: Axis,
     subviews: Subviews,
-    background_view: Option<RectView>,
     alignment: StackAlignment,
     padding_type: StackPaddingType,
     fixed_padding: Option<f32>,
     subview_sizes: Vec<RectSize<f32>>,
     size: RectSize<f32>,
     subview_length_alpha_total: f32,
+    background_rect: RectView,
     _marker: PhantomData<&'cx ()>,
 }
 
 impl<'cx, Subviews: ViewList<'cx>> StackView<'cx, Subviews> {
-    pub const fn new(axis: Axis, subviews: Subviews) -> Self {
+    pub fn new(axis: Axis, subviews: Subviews) -> Self {
         Self {
             axis,
             subviews,
-            background_view: None,
             alignment: StackAlignment::Center,
             padding_type: StackPaddingType::Interpadded,
             fixed_padding: None,
             subview_sizes: Vec::new(),
             size: RectSize::new(0., 0.),
             subview_length_alpha_total: 0.0f32,
+            background_rect: RectView::new(RectSize::new(0., 0.))
+                .with_fill_color(Rgba::new(0., 0., 0., 0.)),
             _marker: PhantomData,
         }
     }
 
-    pub const fn horizontal(subviews: Subviews) -> Self {
+    pub fn horizontal(subviews: Subviews) -> Self {
         Self::new(Axis::Horizontal, subviews)
     }
 
-    pub const fn vertical(subviews: Subviews) -> Self {
+    pub fn vertical(subviews: Subviews) -> Self {
         Self::new(Axis::Vertical, subviews)
     }
 
@@ -103,28 +104,14 @@ impl<'cx, Subviews: ViewList<'cx>> StackView<'cx, Subviews> {
         param_mut_preamble: |_: &mut Self| (),
     }
 
-    pub fn background_color(&self) -> Rgba {
-        self.background_view
-            .as_ref()
-            .map_or(Rgba::from_hex(0), |background_view| {
-                background_view.fill_color()
-            })
-    }
-
-    pub fn set_background_color(&mut self, background_color: impl Into<Rgba>) {
-        let background_color: Rgba = background_color.into();
-        if background_color.a == 0. {
-            return;
-        }
-        let background_view = self
-            .background_view
-            .get_or_insert_with(|| RectView::new(RectSize::new(0., 0.)));
-        background_view.set_fill_color(background_color);
-    }
-
-    pub fn with_background_color(mut self, background_color: impl Into<Rgba>) -> Self {
-        self.set_background_color(background_color);
-        self
+    computed_property! {
+        vis: pub,
+        param_ty: Rgba,
+        param: background_color,
+        set_param: set_background_color,
+        with_param: with_background_color,
+        fget: |self_: &Self| self_.background_rect.fill_color(),
+        fset: |self_: &mut Self, background_color| self_.background_rect.set_fill_color(background_color),
     }
 
     fn warn_n_subviews_changed() {
@@ -159,9 +146,7 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for StackView<'c
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        if let Some(background_view) = self.background_view.as_mut() {
-            background_view.apply_bounds_(bounds);
-        }
+        self.background_rect.apply_bounds_(bounds);
         let squeeze = (bounds.length_alpha(self.axis) / self.size.length_alpha(self.axis)).min(1.);
         let mut subview_sizes = self.subview_sizes.iter();
         let n_subviews = self.subview_sizes.len();
@@ -210,10 +195,8 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for StackView<'c
         ui_context: &UiContext<'cx, Subviews::UiState>,
         canvas: &CanvasRef,
     ) {
-        if let Some(background_view) = self.background_view.as_mut()
-            && background_view.fill_color().a != 0.
-        {
-            background_view.prepare_for_drawing(ui_context, canvas);
+        if self.background_rect.fill_color().a != 0. {
+            self.background_rect.prepare_for_drawing(ui_context, canvas);
         }
         self.subviews.for_each_subview_mut(|subview| {
             subview.prepare_for_drawing(ui_context, canvas);
@@ -222,10 +205,8 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for StackView<'c
     }
 
     fn draw(&self, ui_context: &UiContext<'cx, Subviews::UiState>, render_pass: &mut RenderPass) {
-        if let Some(background_view) = self.background_view.as_ref()
-            && background_view.fill_color().a != 0.
-        {
-            background_view.draw(ui_context, render_pass);
+        if self.background_rect.fill_color().a != 0. {
+            self.background_rect.draw(ui_context, render_pass);
         }
         self.subviews.for_each_subview(|subview| {
             subview.draw(ui_context, render_pass);

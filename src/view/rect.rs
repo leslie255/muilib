@@ -36,8 +36,8 @@ impl Default for RectView {
 impl RectView {
     pub const fn new(size: RectSize<f32>) -> Self {
         Self {
-            fill_color: Rgba::from_hex(0xFFFFFF),
-            line_color: Rgba::from_hex(0xFFFFFF),
+            fill_color: Rgba::from_hex(0xFFFFFFFF),
+            line_color: Rgba::from_hex(0xFFFFFFFF),
             line_width: LineWidth::Uniform(0.),
             size,
             bounds: Bounds::new(point2(0., 0.), size),
@@ -105,15 +105,12 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for RectView {
         self.apply_bounds_(bounds);
     }
 
-    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, canvas: &CanvasRef) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, _canvas: &CanvasRef) {
         let raw = self.raw.get_or_insert_with(|| {
             ui_context
                 .rect_renderer()
                 .create_rect(ui_context.wgpu_device())
         });
-        // Projection always needs to be set, since `needs_update` does not keep track of canvas
-        // size.
-        raw.set_projection(ui_context.wgpu_queue(), canvas.projection);
         if self.needs_update {
             self.needs_update = false;
             raw.set_parameters(ui_context.wgpu_queue(), self.bounds, self.line_width);

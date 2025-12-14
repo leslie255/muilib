@@ -75,7 +75,7 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for ImageView {
         self.apply_bounds_(bounds);
     }
 
-    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, canvas: &CanvasRef) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, _canvas: &CanvasRef) {
         if (self.texture_updated || self.raw.is_none())
             && let Some(texture) = self.texture.as_ref()
         {
@@ -85,12 +85,11 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for ImageView {
                     .create_image(ui_context.wgpu_device(), texture),
             );
         }
-        if let Some(raw) = self.raw.as_ref() {
-            raw.set_projection(ui_context.wgpu_queue(), canvas.projection);
-            if self.bounds_updated {
-                self.bounds_updated = false;
-                raw.set_parameters(ui_context.wgpu_queue(), self.bounds);
-            }
+        if self.bounds_updated
+            && let Some(raw) = self.raw.as_ref()
+        {
+            self.bounds_updated = false;
+            raw.set_parameters(ui_context.wgpu_queue(), self.bounds);
         }
     }
 

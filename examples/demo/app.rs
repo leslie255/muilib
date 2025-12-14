@@ -12,8 +12,8 @@ use crate::theme::{ButtonKind, Theme};
 
 use muilib::{
     AppResources, Bounds, ButtonView, Canvas as _, CanvasRef, ContainerPadding, EventRouter,
-    ImageView, RectSize, RectView, Rgba, Srgb, Srgba, StackAlignment, StackView,
-    TextView, UiContext, View, ViewExt as _, WindowCanvas, ZStackView, view_lists::*,
+    ImageView, RectSize, RectView, Rgba, Srgb, Srgba, StackAlignment, StackView, TextView,
+    UiContext, View, ViewExt as _, WindowCanvas, ZStackView, view_lists::*,
 };
 
 pub(crate) struct Application<'cx> {
@@ -120,41 +120,30 @@ impl<'cx> UiState<'cx> {
             window,
             window_canvas,
             root_view: StackView::vertical(ViewList3::new(
+                ImageView::new(RectSize::new(100., 100.))
+                    .with_texture(texture.clone())
+                    .overlay_filter(Srgba::from_hex(0xFF000080)),
                 StackView::horizontal(ViewList2::new(
-                    TextView::new(&ui_context)
-                        .with_text("@KERBAL")
-                        .with_font_size(32.),
-                    ButtonView::new(&ui_context)
-                        .with_style(theme.button_style(ButtonKind::Primary))
-                        .with_title("255"),
-                ))
-                .with_fixed_padding(10.)
-                .with_alignment(StackAlignment::Trailing),
-                StackView::horizontal(ViewList3::new(
-                    ImageView::new(RectSize::new(100., 100.))
-                        .with_texture(texture.clone())
-                        .overlay_filter(Srgba::from_hex(0x0000FF80)),
                     ImageView::new(RectSize::new(100., 100.))
                         .with_texture(texture.clone())
                         .overlay_filter(Srgba::from_hex(0x00FF0080)),
                     ImageView::new(RectSize::new(100., 100.))
                         .with_texture(texture.clone())
-                        .overlay_filter(Srgba::from_hex(0xFF000080)),
+                        .overlay_filter(Srgba::from_hex(0x0000FF80)),
                 ))
                 .with_fixed_padding(10.),
                 StackView::horizontal(ViewList3::new(
+                    ImageView::new(RectSize::new(100., 100.))
+                        .with_texture(texture.clone())
+                        .overlay_filter(Srgba::from_hex(0xFF00FF80)),
                     ImageView::new(RectSize::new(100., 100.))
                         .with_texture(texture.clone())
                         .overlay_filter(Srgba::from_hex(0x00FFFF80)),
                     ImageView::new(RectSize::new(100., 100.))
                         .with_texture(texture.clone())
                         .overlay_filter(Srgba::from_hex(0xFFFF0080)),
-                    ImageView::new(RectSize::new(100., 100.))
-                        .with_texture(texture.clone())
-                        .overlay_filter(Srgba::from_hex(0xFF00FF80)),
                 ))
-                .with_fixed_padding(10.)
-                .with_alignment(StackAlignment::Leading),
+                .with_fixed_padding(10.),
             ))
             .with_fixed_padding(10.)
             .with_alignment(StackAlignment::Leading)
@@ -162,11 +151,11 @@ impl<'cx> UiState<'cx> {
             .with_padding(ContainerPadding::Fixed(20.))
             .with_background_color(theme.tertiary_background())
             .into_container_view()
-            .with_padding_top(ContainerPadding::Fixed(20.))
-            .with_padding_left(ContainerPadding::Fixed(20.))
-            .with_padding_bottom(ContainerPadding::Spread)
+            .with_padding(ContainerPadding::Fixed(20.))
+            .with_padding(ContainerPadding::Fixed(20.))
+            .into_container_view()
             .with_padding_right(ContainerPadding::Spread)
-            .with_spread_ratio_vertical(0.2)
+            .with_padding_bottom(ContainerPadding::Spread)
             .with_background_color(theme.secondary_background())
             .into_container_view()
             .with_padding(ContainerPadding::Fixed(20.))

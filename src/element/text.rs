@@ -4,6 +4,7 @@ use cgmath::*;
 
 use crate::{
     AppResources, CanvasFormat, Font, Rgba, Texture2d,
+    element::CameraBindGroup,
     resources::LoadResourceError,
     utils::*,
     wgpu_utils::{
@@ -19,21 +20,17 @@ struct TextBindGroup {
 
     #[binding(1)]
     #[uniform]
-    projection: UniformBuffer<[[f32; 4]; 4]>,
+    fg_color: UniformBuffer<[f32; 4]>,
 
     #[binding(2)]
     #[uniform]
-    fg_color: UniformBuffer<[f32; 4]>,
-
-    #[binding(3)]
-    #[uniform]
     bg_color: UniformBuffer<[f32; 4]>,
 
-    #[binding(4)]
+    #[binding(3)]
     #[texture_view]
     texture_view: wgpu::TextureView,
 
-    #[binding(5)]
+    #[binding(4)]
     #[sampler]
     sampler: wgpu::Sampler,
 }
@@ -98,10 +95,6 @@ impl TextElement {
         self.bind_group.model_view.write(model_view.into(), queue);
     }
 
-    pub fn set_projection(&self, queue: &wgpu::Queue, projection: Matrix4<f32>) {
-        self.bind_group.projection.write(projection.into(), queue);
-    }
-
     /// Convenience function over `set_model_view`.
     /// Sets `model_view` according to the bounding box and text size provided.
     pub fn set_parameters(&self, queue: &wgpu::Queue, origin: Point2<f32>, font_size: f32) {
@@ -136,7 +129,10 @@ impl<'cx> TextRenderer<'cx> {
         let bind_group_layout = TextBindGroup::create_bind_group_layout(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[
+                &CameraBindGroup::create_bind_group_layout(device),
+                &bind_group_layout,
+            ],
             push_constant_ranges: &[],
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -227,7 +223,7 @@ impl<'cx> TextRenderer<'cx> {
             return;
         }
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &text.wgpu_bind_group, &[]);
+        render_pass.set_bind_group(1, &text.wgpu_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, text.instance_buffer.slice(..));
         render_pass.set_index_buffer(
@@ -240,7 +236,6 @@ impl<'cx> TextRenderer<'cx> {
     pub fn create_text(&self, device: &wgpu::Device, str: &str) -> TextElement {
         let bind_group = TextBindGroup {
             model_view: UniformBuffer::create_init(device, Matrix4::identity().into()),
-            projection: UniformBuffer::create_init(device, Matrix4::identity().into()),
             fg_color: UniformBuffer::create_init(device, [1.; 4]),
             bg_color: UniformBuffer::create_init(device, [0.; 4]),
             texture_view: self.texture_view.clone(),

@@ -1,7 +1,9 @@
-@group(0) @binding(0) var<uniform> model_view: mat4x4<f32>;
-@group(0) @binding(1) var<uniform> projection: mat4x4<f32>;
-@group(0) @binding(2) var texture: texture_2d<f32>;
-@group(0) @binding(3) var sampler_: sampler;
+@group(0) @binding(0) var<uniform> projection: mat4x4<f32>;
+@group(0) @binding(1) var<uniform> aaf: f32;
+
+@group(1) @binding(0) var<uniform> model_view: mat4x4<f32>;
+@group(1) @binding(1) var texture: texture_2d<f32>;
+@group(1) @binding(2) var sampler_: sampler;
 
 const vertices = array<vec2<f32>, 6>(
     vec2<f32>(0., 0.),

@@ -1,9 +1,11 @@
-@group(0) @binding(0) var<uniform> model_view: mat4x4<f32>;
-@group(0) @binding(1) var<uniform> projection: mat4x4<f32>;
-@group(0) @binding(2) var<uniform> fg_color: vec4<f32>;
-@group(0) @binding(3) var<uniform> bg_color: vec4<f32>;
-@group(0) @binding(4) var texture: texture_2d<f32>;
-@group(0) @binding(5) var sampler_: sampler;
+@group(0) @binding(0) var<uniform> projection: mat4x4<f32>;
+@group(0) @binding(1) var<uniform> aaf: f32;
+
+@group(1) @binding(0) var<uniform> model_view: mat4x4<f32>;
+@group(1) @binding(1) var<uniform> fg_color: vec4<f32>;
+@group(1) @binding(2) var<uniform> bg_color: vec4<f32>;
+@group(1) @binding(3) var texture: texture_2d<f32>;
+@group(1) @binding(4) var sampler_: sampler;
 
 struct VertexInput {
     @location(0) position: vec2<f32>,

@@ -3,15 +3,15 @@ use cgmath::*;
 
 use crate::{
     AppResources, Bounds, CanvasFormat, LineWidth, Rgba,
+    element::CameraBindGroup,
     resources::LoadResourceError,
     utils::*,
-    wgpu_utils::{AsBindGroup, UniformBuffer, Vertex, VertexBuffer},
+    wgpu_utils::{AsBindGroup, Vertex, VertexBuffer},
 };
 
 #[derive(Debug, Clone)]
 pub struct InstancedRectRenderer<'cx> {
     pipeline: wgpu::RenderPipeline,
-    bind_group_layout: wgpu::BindGroupLayout,
     _shader: &'cx wgpu::ShaderModule,
 }
 
@@ -22,10 +22,9 @@ impl<'cx> InstancedRectRenderer<'cx> {
         canvas_format: CanvasFormat,
     ) -> Result<Self, LoadResourceError> {
         let shader = resources.load_shader("shaders/instanced_rect.wgsl", device)?;
-        let bind_group_layout = BindGroup::create_bind_group_layout(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[&CameraBindGroup::create_bind_group_layout(device)],
             push_constant_ranges: &[],
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -69,7 +68,6 @@ impl<'cx> InstancedRectRenderer<'cx> {
             cache: None,
         });
         Ok(Self {
-            bind_group_layout,
             pipeline,
             _shader: shader,
         })
@@ -81,13 +79,7 @@ impl<'cx> InstancedRectRenderer<'cx> {
         instances: &[RectInstance],
     ) -> InstancedRectsElement {
         let instance_buffer = VertexBuffer::create_init(device, instances);
-        let bind_group = BindGroup {
-            projection: UniformBuffer::create_init(device, Matrix4::identity().into()),
-        };
-        let wgpu_bind_group = bind_group.create_bind_group(&self.bind_group_layout, device);
         InstancedRectsElement {
-            bind_group,
-            wgpu_bind_group,
             instance_buffer,
             n_instances: instances.len() as u32,
         }
@@ -95,7 +87,6 @@ impl<'cx> InstancedRectRenderer<'cx> {
 
     pub fn draw_rects(&self, render_pass: &mut wgpu::RenderPass, rects: &InstancedRectsElement) {
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &rects.wgpu_bind_group, &[]);
         render_pass.set_vertex_buffer(0, rects.instance_buffer.slice(..));
         render_pass.draw(0..6, 0..rects.n_instances);
     }
@@ -103,23 +94,8 @@ impl<'cx> InstancedRectRenderer<'cx> {
 
 #[derive(Debug, Clone)]
 pub struct InstancedRectsElement {
-    bind_group: BindGroup,
-    wgpu_bind_group: wgpu::BindGroup,
     instance_buffer: VertexBuffer<RectInstance>,
     n_instances: u32,
-}
-
-impl InstancedRectsElement {
-    pub fn set_projection(&self, queue: &wgpu::Queue, projection: Matrix4<f32>) {
-        self.bind_group.projection.write(projection.into(), queue);
-    }
-}
-
-#[derive(Debug, Clone, AsBindGroup)]
-struct BindGroup {
-    #[binding(0)]
-    #[uniform]
-    projection: UniformBuffer<[[f32; 4]; 4]>,
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Zeroable, Pod)]

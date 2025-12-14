@@ -138,16 +138,13 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for TextView<'cx> {
         self.apply_bounds_(bounds);
     }
 
-    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, canvas: &CanvasRef) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, _canvas: &CanvasRef) {
         let raw = self.raw.get_or_init(|| {
             self.text_needs_update = false; // `create_text` updates the text
             ui_context
                 .text_renderer()
                 .create_text(ui_context.wgpu_device(), &self.text)
         });
-        // Projection always needs to be set, since `needs_update` does not keep track of canvas
-        // size.
-        raw.set_projection(ui_context.wgpu_queue(), canvas.projection);
         if self.needs_update {
             self.needs_update = false;
             let this = &raw;

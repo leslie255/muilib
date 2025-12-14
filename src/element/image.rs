@@ -2,6 +2,7 @@ use cgmath::*;
 
 use crate::{
     Bounds, CanvasFormat, ImageRef, Texture2d,
+    element::CameraBindGroup,
     resources::{AppResources, LoadResourceError},
     utils::*,
     wgpu_utils::{AsBindGroup, UniformBuffer},
@@ -20,14 +21,10 @@ struct ImageBindGroup {
     model_view: UniformBuffer<[[f32; 4]; 4]>,
 
     #[binding(1)]
-    #[uniform]
-    projection: UniformBuffer<[[f32; 4]; 4]>,
-
-    #[binding(2)]
     #[texture_view(sample_type = float, view_dimension = 2, multisampled = false)]
     texture_view: wgpu::TextureView,
 
-    #[binding(3)]
+    #[binding(2)]
     #[sampler(filtering)]
     sampler: wgpu::Sampler,
 }
@@ -41,10 +38,6 @@ pub struct ImageElement {
 impl ImageElement {
     pub fn set_model_view(&self, queue: &wgpu::Queue, model_view: Matrix4<f32>) {
         self.bind_group.model_view.write(model_view.into(), queue);
-    }
-
-    pub fn set_projection(&self, queue: &wgpu::Queue, projection: Matrix4<f32>) {
-        self.bind_group.projection.write(projection.into(), queue);
     }
 
     /// Convenience function over `set_model_view`.
@@ -74,7 +67,10 @@ impl<'cx> ImageRenderer<'cx> {
         let bind_group_layout = ImageBindGroup::create_bind_group_layout(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[
+                &CameraBindGroup::create_bind_group_layout(device),
+                &bind_group_layout,
+            ],
             push_constant_ranges: &[],
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -137,7 +133,6 @@ impl<'cx> ImageRenderer<'cx> {
     pub fn create_image(&self, device: &wgpu::Device, texture: &Texture2d) -> ImageElement {
         let bind_group = ImageBindGroup {
             model_view: UniformBuffer::create_init(device, Matrix4::identity().into()),
-            projection: UniformBuffer::create_init(device, Matrix4::identity().into()),
             texture_view: texture.wgpu_texture_view().clone(),
             sampler: self.sampler.clone(),
         };
@@ -150,7 +145,7 @@ impl<'cx> ImageRenderer<'cx> {
 
     pub fn draw_image(&self, render_pass: &mut wgpu::RenderPass, image: &ImageElement) {
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &image.wgpu_bind_group, &[]);
+        render_pass.set_bind_group(1, &image.wgpu_bind_group, &[]);
         render_pass.draw(0..6, 0..1);
     }
 }

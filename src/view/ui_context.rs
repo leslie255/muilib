@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use cgmath::Point2;
+use cgmath::*;
 use derive_more::{Display, Error};
 use pollster::FutureExt as _;
 use winit::window::Window;
@@ -13,10 +13,11 @@ use winit::window::Window;
 use crate::{
     Bounds, Canvas as _, CanvasFormat, CanvasRef, EventRouter, Font, ImageRef, RectSize, Rgba,
     Texture2d, WindowCanvas,
-    element::{ImageRenderer, InstancedRectRenderer, RectRenderer, TextRenderer},
+    element::{CameraBindGroup, ImageRenderer, InstancedRectRenderer, RectRenderer, TextRenderer},
     resources::{AppResources, LoadResourceError},
     utils::*,
     view::View,
+    wgpu_utils::{AsBindGroup, UniformBuffer},
 };
 
 fn init_wgpu() -> (wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue) {
@@ -39,6 +40,8 @@ fn init_wgpu() -> (wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue) {
 pub struct UiContext<'cx, UiState> {
     device: wgpu::Device,
     queue: wgpu::Queue,
+    camera_bind_group: CameraBindGroup,
+    camera_bind_group_wgpu: wgpu::BindGroup,
     rect_renderer: RectRenderer<'cx>,
     instanced_rect_renderer: InstancedRectRenderer<'cx>,
     text_renderer: TextRenderer<'cx>,
@@ -77,6 +80,12 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
                 $x.map_err(|e| UiContextCreationError::new($stage, e))?
             };
         }
+        let camera_bind_group = CameraBindGroup {
+            projection: UniformBuffer::create_init(&device, Matrix4::identity().into()),
+            aaf: UniformBuffer::create_init(&device, 0.),
+        };
+        let camera_bind_group_wgpu = camera_bind_group
+            .create_bind_group(&CameraBindGroup::create_bind_group_layout(&device), &device);
         // TODO: Move fonts loading to per-TextElement instance.
         let font = try_!(
             UiContextCreationStage::FontLoading,
@@ -101,6 +110,8 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         Ok(Self {
             device,
             queue,
+            camera_bind_group,
+            camera_bind_group_wgpu,
             rect_renderer,
             instanced_rect_renderer,
             text_renderer,
@@ -231,6 +242,7 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         canvas: &CanvasRef,
         clear_color: impl Into<Rgba>,
     ) -> RenderPass {
+        self.camera_bind_group.set_projection(&self.queue, canvas.projection);
         assert!(
             canvas.depth_stencil_texture_view.is_none(),
             "TODO: drawing with depth stencil buffer"
@@ -243,7 +255,7 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
             a: clear_color.a as f64,
         };
         let mut encoder = self.device.create_command_encoder(&the_default());
-        let render_pass = encoder
+        let mut render_pass = encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &canvas.color_texture_view,
@@ -257,6 +269,7 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
                 ..the_default()
             })
             .forget_lifetime();
+        render_pass.set_bind_group(0, &self.camera_bind_group_wgpu, &[]);
         RenderPass::from_raw_parts(self.queue.clone(), render_pass, encoder)
     }
 }
