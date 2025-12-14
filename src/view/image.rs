@@ -56,7 +56,7 @@ impl ImageView {
     /// Set the preferred size to size of the texture.
     pub fn resize_to_fit(&mut self) {
         if let Some(texture) = self.texture.as_ref() {
-            self.set_size(texture.size());
+            self.set_size(texture.size_f());
         }
     }
 

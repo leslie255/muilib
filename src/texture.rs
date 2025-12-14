@@ -44,11 +44,18 @@ impl<'a> ImageRef<'a> {
 
 #[derive(Debug, Clone)]
 pub struct Texture2d {
-    size: RectSize<f32>,
+    size: RectSize<u32>,
     wgpu_texture_view: wgpu::TextureView,
 }
 
 impl Texture2d {
+    pub fn from_raw_parts(size: RectSize<u32>, wgpu_texture_view: wgpu::TextureView) -> Self {
+        Self {
+            size,
+            wgpu_texture_view,
+        }
+    }
+
     pub fn create(device: &wgpu::Device, queue: &wgpu::Queue, image: ImageRef) -> Self {
         let texture = device.create_texture_with_data(
             queue,
@@ -70,17 +77,21 @@ impl Texture2d {
             image.data,
         );
         let texture_view = texture.create_view(&the_default());
-        Self {
-            size: image.size_f(),
-            wgpu_texture_view: texture_view,
-        }
+        Self::from_raw_parts(image.size, texture_view)
     }
 
     pub fn wgpu_texture_view(&self) -> &wgpu::TextureView {
         &self.wgpu_texture_view
     }
 
-    pub fn size(&self) -> RectSize<f32> {
+    pub fn size(&self) -> RectSize<u32> {
         self.size
+    }
+
+    pub fn size_f(&self) -> RectSize<f32> {
+        RectSize {
+            width: self.size.width as f32,
+            height: self.size.height as f32,
+        }
     }
 }
