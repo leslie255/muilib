@@ -242,7 +242,6 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         canvas: &CanvasRef,
         clear_color: impl Into<Rgba>,
     ) -> RenderPass {
-        self.camera_bind_group.set_projection(&self.queue, canvas.projection);
         assert!(
             canvas.depth_stencil_texture_view.is_none(),
             "TODO: drawing with depth stencil buffer"
@@ -269,6 +268,10 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
                 ..the_default()
             })
             .forget_lifetime();
+        self.camera_bind_group
+            .set_projection(&self.queue, canvas.projection);
+        self.camera_bind_group
+            .set_aaf(&self.queue, 1. / (0.5 * canvas.logical_size.as_vec().sum()));
         render_pass.set_bind_group(0, &self.camera_bind_group_wgpu, &[]);
         RenderPass::from_raw_parts(self.queue.clone(), render_pass, encoder)
     }
