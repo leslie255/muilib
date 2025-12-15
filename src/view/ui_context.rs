@@ -11,13 +11,7 @@ use pollster::FutureExt as _;
 use winit::window::Window;
 
 use crate::{
-    Bounds, Canvas as _, CanvasFormat, CanvasRef, EventRouter, Font, ImageRef, RectSize, Rgba,
-    Texture2d, WindowCanvas,
-    element::{CameraBindGroup, ImageRenderer, InstancedRectRenderer, RectRenderer, TextRenderer},
-    resources::{AppResources, LoadResourceError},
-    utils::*,
-    view::View,
-    wgpu_utils::{AsBindGroup, UniformBuffer},
+    element::{CameraBindGroup, ImageRenderer, InstancedRectRenderer, RectRenderer, TextRenderer}, resources::{AppResources, LoadResourceError}, utils::*, view::View, wgpu_utils::{AsBindGroup, UniformBuffer}, Bounds, Canvas as _, CanvasFormat, CanvasRef, EventRouter, Font, ImageRef, LayoutPass, RectSize, Rgba, Texture2d, WindowCanvas
 };
 
 fn init_wgpu() -> (wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue) {
@@ -234,6 +228,10 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
 
     pub fn create_texture(&self, image: ImageRef) -> Texture2d {
         Texture2d::create(&self.device, &self.queue, image)
+    }
+
+    pub fn begin_layout_pass(&self) -> LayoutPass<'cx, UiState> {
+        LayoutPass::new()
     }
 
     pub fn begin_render_pass(

@@ -12,6 +12,7 @@ mod resources;
 mod texture;
 mod view;
 mod lazy_app_handler;
+mod layout;
 
 pub use canvas::*;
 pub use event_router::*;
@@ -21,6 +22,7 @@ pub use resources::*;
 pub use texture::*;
 pub use view::*;
 pub use lazy_app_handler::*;
+pub use layout::*;
 
 pub mod element;
 pub mod wgpu_utils;

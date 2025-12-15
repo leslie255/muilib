@@ -124,8 +124,10 @@ pub trait ButtonCallback<'cx, UiState: 'cx>: Send + Sync + 'cx {
     fn callback(&self, ui_state: &mut UiState, event: ButtonEvent);
 }
 
-impl<'cx, UiState: 'cx, F: Fn(&mut UiState, ButtonEvent) + Send + Sync + 'cx>
-    ButtonCallback<'cx, UiState> for F
+impl<'cx, UiState, F> ButtonCallback<'cx, UiState> for F
+where
+    UiState: 'cx,
+    F: Fn(&mut UiState, ButtonEvent) + Send + Sync + 'cx,
 {
     fn callback(&self, ui_state: &mut UiState, event: ButtonEvent) {
         self(ui_state, event)

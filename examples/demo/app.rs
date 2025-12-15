@@ -8,33 +8,16 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::theme::Theme;
-
 use muilib::{
-    AppResources, ButtonView, Canvas as _, CanvasRef, ContainerPadding, EventRouter, ImageView,
-    LazyApplicationHandler, RectSize, RectView, Rgba, Srgb, Srgba, StackAlignment, StackView,
-    UiContext, View, ViewExt as _, WindowCanvas, ZStackView, view_lists::*,
+    AppResources, Canvas as _, CanvasRef, EventRouter, LazyApplicationHandler, RectSize, RectView,
+    Srgb, UiContext, WindowCanvas,
 };
-
-trait OverlayFilter<'cx, UiState: 'cx>: View<'cx, UiState> + Sized {
-    fn overlay_filter(self, color: impl Into<Rgba>) -> impl View<'cx, UiState> {
-        ZStackView::new(ViewList2::new(
-            self,
-            RectView::new(RectSize::new(100., 100.))
-                .with_fill_color(color)
-                .with_line_color(Srgb::from_hex(0xFFFFFF))
-                .with_line_width(2.),
-        ))
-    }
-}
-
-impl<'cx, UiState: 'cx, T: View<'cx, UiState>> OverlayFilter<'cx, UiState> for T {}
 
 pub struct App<'cx> {
     window: Arc<Window>,
     window_canvas: WindowCanvas<'static>,
     ui_context: UiContext<'cx, Self>,
-    root_view: Box<dyn View<'cx, Self>>,
+    rects: Vec<RectView>,
 }
 
 impl<'cx> LazyApplicationHandler<&'cx AppResources> for App<'cx> {
@@ -54,57 +37,22 @@ impl<'cx> App<'cx> {
             UiContext::create_for_window(resources, window.clone(), event_router.clone())
                 .unwrap_or_else(|e| panic!("{e}"));
 
-        let theme = &Theme::DEFAULT;
+        // let image = resources.load_image("images/pfp.png").unwrap();
+        // let texture = ui_context.create_texture(image);
 
-        let image = resources.load_image("images/pfp.png").unwrap();
-        let texture = ui_context.create_texture(image);
-
+        let colors = [0x0000C0, 0x00C000, 0xC00000, 0x008080, 0x808000, 0x800080];
         let mut self_ = Self {
             window,
             window_canvas,
-            root_view: StackView::vertical(ViewList4::new(
-                ImageView::new(RectSize::new(100., 100.))
-                    .with_texture(texture.clone())
-                    .overlay_filter(Srgba::from_hex(0xFF000080)),
-                StackView::horizontal(ViewList2::new(
-                    ImageView::new(RectSize::new(100., 100.))
-                        .with_texture(texture.clone())
-                        .overlay_filter(Srgba::from_hex(0x00FF0080)),
-                    ImageView::new(RectSize::new(100., 100.))
-                        .with_texture(texture.clone())
-                        .overlay_filter(Srgba::from_hex(0x0000FF80)),
-                ))
-                .with_fixed_padding(10.),
-                StackView::horizontal(ViewList3::new(
-                    ImageView::new(RectSize::new(100., 100.))
-                        .with_texture(texture.clone())
-                        .overlay_filter(Srgba::from_hex(0xFF00FF80)),
-                    ImageView::new(RectSize::new(100., 100.))
-                        .with_texture(texture.clone())
-                        .overlay_filter(Srgba::from_hex(0x00FFFF80)),
-                    ImageView::new(RectSize::new(100., 100.))
-                        .with_texture(texture.clone())
-                        .overlay_filter(Srgba::from_hex(0xFFFF0080)),
-                ))
-                .with_fixed_padding(10.),
-                ButtonView::new(&ui_context),
-            ))
-            .with_fixed_padding(10.)
-            .with_alignment(StackAlignment::Leading)
-            .into_container_view()
-            .with_padding(ContainerPadding::Fixed(20.))
-            .with_background_color(theme.tertiary_background())
-            .into_container_view()
-            .with_padding(ContainerPadding::Fixed(20.))
-            .with_padding(ContainerPadding::Fixed(20.))
-            .into_container_view()
-            .with_padding_right(ContainerPadding::Spread)
-            .with_padding_bottom(ContainerPadding::Spread)
-            .with_background_color(theme.secondary_background())
-            .into_container_view()
-            .with_padding(ContainerPadding::Fixed(20.))
-            .with_background_color(theme.primary_background())
-            .into_box_dyn_view(),
+            rects: colors
+                .into_iter()
+                .map(|color| {
+                    RectView::new(RectSize::new(100., 100.))
+                        .with_fill_color(Srgb::from_hex(color))
+                        .with_line_color(Srgb::from_hex(0xFFFFFF))
+                        .with_line_width(2.)
+                })
+                .collect(),
             ui_context,
         };
         self_.window_resized();
@@ -114,12 +62,43 @@ impl<'cx> App<'cx> {
     fn frame(&mut self, canvas: CanvasRef) {
         let mut render_pass = self
             .ui_context
-            .begin_render_pass(&canvas, Srgb::from_hex(0));
+            .begin_render_pass(&canvas, Srgb::from_hex(0x181818));
+
+        let layout = self.ui_context.begin_layout_pass();
+
+        let [row0, row1, row2] = self.rects.get_disjoint_mut([0..1, 1..3, 3..6]).unwrap();
+        let root_view = layout
+            .container(layout.vstack(|vstack| {
+                vstack.set_fixed_padding(10.);
+                vstack.set_alignment(muilib::StackAlignment::Leading);
+                vstack.subview(layout.hstack(|vstack| {
+                    vstack.set_fixed_padding(10.);
+                    for rect in row0 {
+                        vstack.subview(rect);
+                    }
+                }));
+                vstack.subview(layout.hstack(|vstack| {
+                    vstack.set_fixed_padding(10.);
+                    for rect in row1 {
+                        vstack.subview(rect);
+                    }
+                }));
+                vstack.subview(layout.hstack(|vstack| {
+                    vstack.set_fixed_padding(10.);
+                    for rect in row2 {
+                        vstack.subview(rect);
+                    }
+                }));
+            }))
+            .with_padding(muilib::ContainerPadding::Spread);
+
+        let root_view_padded = layout
+            .container(root_view)
+            .with_padding(muilib::ContainerPadding::Fixed(20.));
 
         self.ui_context
-            .prepare_view_bounded(&canvas, canvas.bounds(), self.root_view.as_mut());
-        self.ui_context
-            .draw_view(&mut render_pass, self.root_view.as_ref());
+            .prepare_view_bounded(&canvas, canvas.bounds(), root_view_padded);
+        self.ui_context.draw_view(&mut render_pass, root_view);
     }
 
     fn window_resized(&mut self) {

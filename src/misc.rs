@@ -1,4 +1,7 @@
-use std::fmt::{self, Debug};
+use std::{
+    fmt::{self, Debug},
+    ops::Add,
+};
 
 use bytemuck::{Pod, Zeroable};
 use cgmath::*;
@@ -373,38 +376,46 @@ impl<T: Copy> Bounds<T> {
     pub const fn with_size(self, size: RectSize<T>) -> Self {
         Self { size, ..self }
     }
-}
 
-impl Bounds<f32> {
-    pub const fn x_max(self) -> f32 {
+    pub fn x_max(self) -> T
+    where
+        T: Add<T, Output = T>,
+    {
         self.origin.x + self.size.width
     }
 
-    pub const fn y_max(self) -> f32 {
+    pub fn y_max(self) -> T
+    where
+        T: Add<T, Output = T>,
+    {
         self.origin.y + self.size.height
     }
+}
 
-    pub const fn xy_max(self) -> Point2<f32> {
-        point2(self.x_max(), self.y_max())
+impl Bounds<f32> {
+    /// `const fn` versions of `x_max`, downside is it is `f32`-only.
+    pub const fn x_max_(self) -> f32 {
+        self.origin.x + self.size.width
     }
 
-    pub const fn xy_min(self) -> Point2<f32> {
-        self.origin
+    /// `const fn` versions of `x_max`, downside is it is `f32`-only.
+    pub const fn y_max_(self) -> f32 {
+        self.origin.y + self.size.height
     }
 
     pub const fn contains(self, point: Point2<f32>) -> bool {
         self.x_min() <= point.x
-            && point.x <= self.x_max()
+            && point.x <= self.x_max_()
             && self.y_min() <= point.y
-            && point.y <= self.y_max()
+            && point.y <= self.y_max_()
     }
 
     pub const fn with_padding(self, padding: f32) -> Self {
         Self::from_scalars(
             self.x_min() + padding,
             self.y_min() + padding,
-            self.width() - padding - padding,
-            self.height() - padding - padding,
+            (self.width() - padding - padding).max(0.),
+            (self.height() - padding - padding).max(0.),
         )
     }
 }

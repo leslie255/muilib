@@ -1325,6 +1325,7 @@ dependencies = [
 name = "muilib"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
  "bytemuck",
  "cgmath",
  "derive",

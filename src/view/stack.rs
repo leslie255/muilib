@@ -9,23 +9,6 @@ use crate::{
 
 use super::{ControlFlow, UiContext};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StackPaddingType {
-    /// Pad only between the subviews.
-    Interpadded,
-    /// Pad between the subviews, before the first subview, and after the last subview.
-    Omnipadded,
-}
-
-#[derive(Default, Debug, Clone, Copy)]
-pub enum StackAlignment {
-    #[default]
-    Center,
-    Leading,
-    Trailing,
-    Ratio(f32),
-}
-
 pub struct StackView<'cx, Subviews: ViewList<'cx>> {
     axis: Axis,
     subviews: Subviews,
@@ -212,17 +195,6 @@ impl<'cx, Subviews: ViewList<'cx>> View<'cx, Subviews::UiState> for StackView<'c
             subview.draw(ui_context, render_pass);
             ControlFlow::Continue
         });
-    }
-}
-
-impl StackAlignment {
-    fn ratio(self) -> f32 {
-        match self {
-            StackAlignment::Center => 0.5,
-            StackAlignment::Leading => 0.0,
-            StackAlignment::Trailing => 1.0,
-            StackAlignment::Ratio(ratio) => ratio,
-        }
     }
 }
 
