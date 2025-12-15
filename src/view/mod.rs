@@ -1,13 +1,11 @@
 use crate::{Bounds, CanvasRef, RectSize};
 
-mod axis;
 mod button;
 mod image;
 mod rect;
 mod text;
 mod ui_context;
 
-pub use axis::*;
 pub use button::*;
 pub use image::*;
 pub use rect::*;

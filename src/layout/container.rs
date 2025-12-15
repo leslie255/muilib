@@ -170,8 +170,7 @@ where
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        let requested_size = self.subview_size;
-        let max_subview_size = RectSize {
+        let subview_size = RectSize {
             width: (bounds.width()
                 - self.padding_left.as_fixed().unwrap_or(0.)
                 - self.padding_right.as_fixed().unwrap_or(0.)),
@@ -180,7 +179,6 @@ where
                 - self.padding_bottom.as_fixed().unwrap_or(0.)),
         }
         .max(RectSize::new(0., 0.));
-        let subview_size = requested_size.min(max_subview_size);
         let (padding_left, padding_right) = Self::padding(
             self.padding_left,
             self.padding_right,

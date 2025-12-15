@@ -13,6 +13,8 @@ use muilib::{
     Srgb, UiContext, WindowCanvas,
 };
 
+use crate::theme::Theme;
+
 pub struct App<'cx> {
     window: Arc<Window>,
     window_canvas: WindowCanvas<'static>,
@@ -60,44 +62,39 @@ impl<'cx> App<'cx> {
     }
 
     fn frame(&mut self, canvas: CanvasRef) {
-        let mut render_pass = self
-            .ui_context
-            .begin_render_pass(&canvas, Srgb::from_hex(0x181818));
-
         let layout = self.ui_context.begin_layout_pass();
 
         let [row0, row1, row2] = self.rects.get_disjoint_mut([0..1, 1..3, 3..6]).unwrap();
-        let root_view = layout
-            .container(layout.vstack(|vstack| {
+        let root_view = layout.vstack(|vstack| {
+            vstack.set_fixed_padding(10.);
+            vstack.set_alignment_horizontal(muilib::StackAlignmentHorizontal::Right);
+            vstack.subview(layout.hstack(|vstack| {
                 vstack.set_fixed_padding(10.);
-                vstack.set_alignment(muilib::StackAlignment::Leading);
-                vstack.subview(layout.hstack(|vstack| {
-                    vstack.set_fixed_padding(10.);
-                    for rect in row0 {
-                        vstack.subview(rect);
-                    }
-                }));
-                vstack.subview(layout.hstack(|vstack| {
-                    vstack.set_fixed_padding(10.);
-                    for rect in row1 {
-                        vstack.subview(rect);
-                    }
-                }));
-                vstack.subview(layout.hstack(|vstack| {
-                    vstack.set_fixed_padding(10.);
-                    for rect in row2 {
-                        vstack.subview(rect);
-                    }
-                }));
-            }))
-            .with_padding(muilib::ContainerPadding::Spread);
-
-        let root_view_padded = layout
-            .container(root_view)
-            .with_padding(muilib::ContainerPadding::Fixed(20.));
+                for rect in row0 {
+                    vstack.subview(rect);
+                }
+            }));
+            vstack.subview(layout.hstack(|vstack| {
+                vstack.set_fixed_padding(10.);
+                for rect in row1 {
+                    vstack.subview(rect);
+                }
+            }));
+            vstack.subview(layout.hstack(|vstack| {
+                vstack.set_fixed_padding(10.);
+                for rect in row2 {
+                    vstack.subview(rect);
+                }
+            }));
+        });
 
         self.ui_context
-            .prepare_view_bounded(&canvas, canvas.bounds(), root_view_padded);
+            .prepare_view_bounded(&canvas, canvas.bounds().with_inset(20.), root_view);
+
+        let mut render_pass = self
+            .ui_context
+            .begin_render_pass(&canvas, Theme::DEFAULT.primary_background());
+
         self.ui_context.draw_view(&mut render_pass, root_view);
     }
 
