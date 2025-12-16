@@ -51,7 +51,6 @@ pub struct Container<'view, Subview> {
     spread_ratio_vertical: f32,
     subview: &'view mut Subview,
     subview_size: RectSize<f32>,
-    override_size: Option<RectSize<f32>>,
 }
 
 impl<'view, Subview> Container<'view, Subview> {
@@ -59,7 +58,6 @@ impl<'view, Subview> Container<'view, Subview> {
     where
         Subview: View<'cx>,
     {
-        let subview_size = subview.preferred_size();
         Self {
             padding_left: ContainerPadding::Fixed(0.),
             padding_right: ContainerPadding::Fixed(0.),
@@ -67,9 +65,8 @@ impl<'view, Subview> Container<'view, Subview> {
             padding_bottom: ContainerPadding::Fixed(0.),
             spread_ratio_horizontal: 0.5,
             spread_ratio_vertical: 0.5,
+            subview_size: subview.preferred_size(),
             subview,
-            subview_size,
-            override_size: None,
         }
     }
 
@@ -113,19 +110,8 @@ impl<'view, Subview> Container<'view, Subview> {
     }
 
     /// The preferred size of the subview.
-    ///
-    /// Does not include the the override size set by `override_subview_size` (if any).
     pub fn subview_size(&self) -> RectSize<f32> {
         self.subview_size
-    }
-
-    /// Override the subview size.
-    pub fn override_subview_size(
-        &mut self,
-        override_size: impl Into<Option<RectSize<f32>>>,
-    ) -> &mut Self {
-        self.override_size = override_size.into();
-        self
     }
 
     fn padding_length(
@@ -164,29 +150,27 @@ where
     Subview: View<'cx>,
 {
     fn preferred_size(&mut self) -> RectSize<f32> {
-        let subview_size = self.override_size.unwrap_or(self.subview_size);
         let (padding_left, padding_right) = Self::padding_length(
             self.padding_left,
             self.padding_right,
             self.spread_ratio_horizontal,
-            subview_size.width,
+            self.subview_size.width,
             f32::INFINITY,
         );
         let (padding_top, padding_bottom) = Self::padding_length(
             self.padding_top,
             self.padding_bottom,
             self.spread_ratio_vertical,
-            subview_size.height,
+            self.subview_size.height,
             f32::INFINITY,
         );
         RectSize {
-            width: padding_left + subview_size.width + padding_right,
-            height: padding_top + subview_size.height + padding_bottom,
+            width: padding_left + self.subview_size.width + padding_right,
+            height: padding_top + self.subview_size.height + padding_bottom,
         }
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        let requested_size = self.override_size.unwrap_or(self.subview_size);
         let max_size = RectSize {
             width: (bounds.width()
                 - self.padding_left.as_fixed().unwrap_or(0.)
@@ -196,7 +180,7 @@ where
                 - self.padding_bottom.as_fixed().unwrap_or(0.)),
         }
         .max(RectSize::new(0., 0.));
-        let subview_size = requested_size.min(max_size);
+        let subview_size = self.subview_size.min(max_size);
         let (padding_left, padding_right) = Self::padding_length(
             self.padding_left,
             self.padding_right,
