@@ -15,7 +15,7 @@ pub struct RectView {
     line_width: LineWidth,
     bounds: Bounds<f32>,
     needs_update: bool,
-    /// Initialised until the first call of `View::set_size`.
+    /// Initialised until the first call of `View::apply_size`.
     raw: Option<RectElement>,
 }
 
@@ -96,17 +96,16 @@ impl RectView {
     }
 }
 
-impl<'cx, UiState: 'cx> View<'cx, UiState> for RectView {
+impl<'cx> View<'cx> for RectView {
     fn preferred_size(&mut self) -> RectSize<f32> {
         self.size
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        dbg!(bounds);
         self.apply_bounds_(bounds);
     }
 
-    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, _canvas: &CanvasRef) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx>, _canvas: &CanvasRef) {
         let raw = self.raw.get_or_insert_with(|| {
             ui_context
                 .rect_renderer()
@@ -120,7 +119,7 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for RectView {
         }
     }
 
-    fn draw(&self, ui_context: &UiContext<UiState>, render_pass: &mut RenderPass) {
+    fn draw(&self, ui_context: &UiContext<'cx>, render_pass: &mut RenderPass) {
         if let Some(raw) = self.raw.as_ref()
             && !self.needs_update
         {

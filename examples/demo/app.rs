@@ -14,8 +14,9 @@ use crate::theme::Theme;
 pub struct App<'cx> {
     window: Arc<Window>,
     window_canvas: muilib::WindowCanvas<'static>,
-    ui_context: muilib::UiContext<'cx, Self>,
+    ui_context: muilib::UiContext<'cx>,
     rects: Vec<muilib::RectView>,
+    event_router: Arc<muilib::EventRouter<'cx, Self>>,
 }
 
 impl<'cx> muilib::LazyApplicationHandler<&'cx muilib::AppResources> for App<'cx> {
@@ -32,7 +33,7 @@ impl<'cx> App<'cx> {
         let window = Arc::new(window);
         let event_router = Arc::new(muilib::EventRouter::new());
         let (ui_context, window_canvas) =
-            muilib::UiContext::create_for_window(resources, window.clone(), event_router.clone())
+            muilib::UiContext::create_for_window(resources, window.clone())
                 .unwrap_or_else(|e| panic!("{e}"));
 
         // let image = resources.load_image("images/pfp.png").unwrap();
@@ -42,9 +43,9 @@ impl<'cx> App<'cx> {
 
         let rects = colors
             .into_iter()
-            .map(|color| {
+            .map(|_| {
                 muilib::RectView::new(RectSize::new(100., 100.))
-                    .with_fill_color(Srgb::from_hex(color))
+                    .with_fill_color(Theme::DEFAULT.secondary_background())
                     .with_line_color(Srgb::from_hex(0xFFFFFF))
                     .with_line_width(2.)
             })
@@ -55,6 +56,7 @@ impl<'cx> App<'cx> {
             window_canvas,
             rects,
             ui_context,
+            event_router,
         };
         self_.window_resized();
         self_
@@ -129,7 +131,7 @@ impl<'cx> ApplicationHandler for App<'cx> {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        let should_redraw = self.ui_context.event_router().window_event(&event, self);
+        let should_redraw = self.event_router.clone().window_event(&event, self);
         if should_redraw {
             self.window.request_redraw();
         }

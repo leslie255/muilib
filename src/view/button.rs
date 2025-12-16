@@ -14,8 +14,8 @@ use cgmath::*;
 use winit::event::MouseButton;
 
 use crate::{
-    Bounds, CanvasRef, LineWidth, ListenerHandle, MouseEvent, MouseEventKind, MouseEventListener,
-    RectSize, RectView, RenderPass, Srgb, Srgba, TextView, UiContext, View,
+    Bounds, CanvasRef, EventRouter, LineWidth, ListenerHandle, MouseEvent, MouseEventKind,
+    MouseEventListener, RectSize, RectView, RenderPass, Srgb, Srgba, TextView, UiContext, View,
     utils::AtomicBoolExt as _,
 };
 
@@ -30,8 +30,8 @@ pub enum ButtonState {
     PressedOutside,
 }
 
-use atomic_button_state::*;
 // Invariance inside.
+use atomic_button_state::*;
 mod atomic_button_state {
     use super::*;
     use std::{
@@ -56,6 +56,12 @@ mod atomic_button_state {
         pub fn store(&self, value: ButtonState, order: atomic::Ordering) {
             self.0.store(value as u8, order)
         }
+    }
+}
+
+impl From<ButtonState> for AtomicButtonState {
+    fn from(state: ButtonState) -> Self {
+        Self::new(state)
     }
 }
 
@@ -139,15 +145,12 @@ pub struct ButtonView<'cx, UiState: 'cx> {
     text_view: TextView<'cx>,
     style: ButtonStyle,
     dispatch: Arc<ButtonDispatch<'cx, UiState>>,
-    /// The callback that has been set by `set_callback` but hasn't been updated into event router
-    /// yet. (Would be updated in the next `prepare_for_drawing` call).
-    new_callback: Option<Box<dyn ButtonCallback<'cx, UiState>>>,
     /// `None` until the first `prepare_for_drawing`.
     listener_handle: Option<ListenerHandle>,
 }
 
 impl<'cx, UiState> ButtonView<'cx, UiState> {
-    pub fn new(ui_context: &UiContext<'cx, UiState>) -> Self {
+    pub fn new(ui_context: &UiContext<'cx>) -> Self {
         let dispatch = Arc::new(ButtonDispatch {
             state: AtomicButtonState::new(ButtonState::Idle),
             state_updated: AtomicBool::new(true),
@@ -158,17 +161,31 @@ impl<'cx, UiState> ButtonView<'cx, UiState> {
             text_view: TextView::new(ui_context).with_text("Button"),
             style: Self::DEFAULT_STYLE,
             dispatch,
-            new_callback: None,
             listener_handle: None,
         }
     }
 
-    pub fn set_callback(&mut self, callback: impl ButtonCallback<'cx, UiState>) {
-        self.new_callback = Some(Box::new(callback));
+    pub fn set_callback(
+        &mut self,
+        event_router: &EventRouter<'cx, UiState>,
+        callback: impl ButtonCallback<'cx, UiState>,
+    ) {
+        self.dispatch = Arc::new(ButtonDispatch {
+            state: AtomicButtonState::new(self.dispatch.state()),
+            state_updated: AtomicBool::new(self.dispatch.state_updated.load(Acquire)),
+            callback: Some(Box::new(callback)),
+        });
+        let listener_handle =
+            event_router.register_listener(self.rect_view.bounds(), self.dispatch.clone());
+        self.listener_handle = Some(listener_handle);
     }
 
-    pub fn with_callback(mut self, callback: impl ButtonCallback<'cx, UiState>) -> Self {
-        self.set_callback(callback);
+    pub fn with_callback(
+        mut self,
+        event_router: &EventRouter<'cx, UiState>,
+        callback: impl ButtonCallback<'cx, UiState>,
+    ) -> Self {
+        self.set_callback(event_router, callback);
         self
     }
 
@@ -270,7 +287,7 @@ impl<'cx, UiState> ButtonView<'cx, UiState> {
     }
 }
 
-impl<'cx, UiState: 'cx> View<'cx, UiState> for ButtonView<'cx, UiState> {
+impl<'cx, UiState: 'cx> View<'cx> for ButtonView<'cx, UiState> {
     fn preferred_size(&mut self) -> RectSize<f32> {
         self.size()
     }
@@ -283,25 +300,7 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for ButtonView<'cx, UiState> {
         }
     }
 
-    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx, UiState>, canvas: &CanvasRef) {
-        if let Some(callback) = self.new_callback.take() {
-            if let Some(dispatch_mut) = Arc::get_mut(&mut self.dispatch) {
-                dispatch_mut.callback = Some(callback);
-            } else {
-                self.dispatch = Arc::new(ButtonDispatch {
-                    state: AtomicButtonState::new(self.dispatch.state.load(Acquire)),
-                    state_updated: AtomicBool::new(self.dispatch.state_updated.load(Acquire)),
-                    callback: Some(callback),
-                });
-            }
-            self.listener_handle = None;
-        }
-        if self.listener_handle.is_none() {
-            let listener_handle = ui_context
-                .event_router()
-                .register_listener(self.rect_view.bounds(), self.dispatch.clone());
-            self.listener_handle = Some(listener_handle);
-        }
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx>, canvas: &CanvasRef) {
         let state_updated = self.dispatch.state_updated.fetch_set(false, AcqRel);
         if state_updated {
             self.update_styles();
@@ -310,7 +309,7 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for ButtonView<'cx, UiState> {
         self.text_view.prepare_for_drawing(ui_context, canvas);
     }
 
-    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut RenderPass) {
+    fn draw(&self, ui_context: &UiContext<'cx>, render_pass: &mut RenderPass) {
         self.rect_view.draw(ui_context, render_pass);
         self.text_view.draw(ui_context, render_pass);
     }

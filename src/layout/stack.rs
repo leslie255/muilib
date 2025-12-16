@@ -96,16 +96,16 @@ impl From<StackAlignment> for StackAlignmentVertical {
 }
 
 #[derive(AsRef, AsMut, Deref, DerefMut)]
-pub(crate) struct Subview<'a, 'cx, UiState> {
+pub(crate) struct StackSubview<'view, 'cx> {
     pub(crate) preferred_size: RectSize<f32>,
     #[deref]
     #[deref_mut]
     #[as_ref]
     #[as_mut]
-    pub(crate) view: &'a mut (dyn View<'cx, UiState> + 'a),
+    pub(crate) view: &'view mut (dyn View<'cx> + 'view),
 }
 
-pub struct Stack<'pass, 'views, 'cx, UiState> {
+pub struct Stack<'pass, 'views, 'cx> {
     // For the lingo "a", "b", "alpha", "beta", see `axis_utils`.
     //
     axis: Axis,
@@ -114,7 +114,7 @@ pub struct Stack<'pass, 'views, 'cx, UiState> {
     padding_type: StackPaddingType,
     fixed_padding: Option<f32>,
     shrink_together: bool,
-    subviews: BumpVec<'pass, Subview<'views, 'cx, UiState>>,
+    subviews: BumpVec<'pass, StackSubview<'views, 'cx>>,
     /// Sum of the alphas of subviews.
     alpha_sum: f32,
     /// Sum of alphas of subviews, excluding those who has infinite alphas.
@@ -127,7 +127,7 @@ pub struct Stack<'pass, 'views, 'cx, UiState> {
     n_infinite_alphas: usize,
 }
 
-impl<'pass, 'views, 'cx, UiState> Stack<'pass, 'views, 'cx, UiState> {
+impl<'pass, 'views, 'cx> Stack<'pass, 'views, 'cx> {
     pub(crate) fn new(bump: &'pass Bump, axis: Axis) -> Self {
         Self {
             axis,
@@ -145,7 +145,7 @@ impl<'pass, 'views, 'cx, UiState> Stack<'pass, 'views, 'cx, UiState> {
         }
     }
 
-    pub(crate) fn subview(&mut self, subview: &'views mut (dyn View<'cx, UiState> + 'views)) {
+    pub(crate) fn subview(&mut self, subview: &'views mut (dyn View<'cx> + 'views)) {
         // For the lingo "a", "b", "alpha", "beta", see `axis_utils`.
         let subview_size = subview.preferred_size();
         let subview_alpha = subview_size.alpha(self.axis);
@@ -160,7 +160,7 @@ impl<'pass, 'views, 'cx, UiState> Stack<'pass, 'views, 'cx, UiState> {
         if subview_beta.is_finite() {
             self.beta_max_finite = self.beta_max_finite.max(subview_beta);
         }
-        self.subviews.push(Subview {
+        self.subviews.push(StackSubview {
             preferred_size: subview_size,
             view: subview,
         });
@@ -174,7 +174,7 @@ impl<'pass, 'views, 'cx, UiState> Stack<'pass, 'views, 'cx, UiState> {
     }
 }
 
-impl<'pass, 'views, 'cx, UiState> View<'cx, UiState> for Stack<'pass, 'views, 'cx, UiState> {
+impl<'pass, 'views, 'cx> View<'cx> for Stack<'pass, 'views, 'cx> {
     fn preferred_size(&mut self) -> RectSize<f32> {
         let n_paddings = Self::n_paddings(self.subviews.len(), self.padding_type) as f32;
         RectSize::new_on_axis(
@@ -248,31 +248,31 @@ impl<'pass, 'views, 'cx, UiState> View<'cx, UiState> for Stack<'pass, 'views, 'c
         }
     }
 
-    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx, UiState>, canvas: &CanvasRef) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx>, canvas: &CanvasRef) {
         for subview in &mut self.subviews {
             subview.prepare_for_drawing(ui_context, canvas);
         }
     }
 
-    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut RenderPass) {
+    fn draw(&self, ui_context: &UiContext<'cx>, render_pass: &mut RenderPass) {
         for subview in &self.subviews {
             subview.draw(ui_context, render_pass);
         }
     }
 }
 
-pub struct StackBuilder<'pass, 'views, 'cx, UiState> {
-    stack: Stack<'pass, 'views, 'cx, UiState>,
+pub struct StackBuilder<'pass, 'views, 'cx> {
+    stack: Stack<'pass, 'views, 'cx>,
 }
 
-impl<'pass, 'views, 'cx, UiState> StackBuilder<'pass, 'views, 'cx, UiState> {
+impl<'pass, 'views, 'cx> StackBuilder<'pass, 'views, 'cx> {
     pub(crate) fn new(bump: &'pass Bump, axis: Axis) -> Self {
         Self {
             stack: Stack::new(bump, axis),
         }
     }
 
-    pub fn subview(&mut self, subview: &'views mut (dyn View<'cx, UiState> + 'views)) {
+    pub fn subview(&mut self, subview: &'views mut (dyn View<'cx> + 'views)) {
         self.stack.subview(subview);
     }
 
@@ -315,7 +315,7 @@ impl<'pass, 'views, 'cx, UiState> StackBuilder<'pass, 'views, 'cx, UiState> {
         self.stack.shrink_together = shrink_together;
     }
 
-    pub(crate) fn finish(self) -> Stack<'pass, 'views, 'cx, UiState> {
+    pub(crate) fn finish(self) -> Stack<'pass, 'views, 'cx> {
         self.stack
     }
 }

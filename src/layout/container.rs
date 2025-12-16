@@ -13,7 +13,8 @@ pub enum ContainerPadding {
     /// Take the rest of the remaining space.
     ///
     /// If both edges of an axis are `Spread`, then the view is positioned somewhere in the center.
-    /// The position of the view in this situation is determined by `spread_ratio_{vertical|horizontal}`, as follows:
+    /// The position of the view in this situation is determined by
+    /// `spread_ratio_{vertical|horizontal}`, as follows:
     ///
     /// - `padding_left = spread_ratio_horizontal * (availible_width - subview_width)`
     /// - `padding_top = spread_ratio_vertical * (availible_height - subview_height)`
@@ -54,10 +55,9 @@ pub struct Container<'view, Subview> {
 }
 
 impl<'view, Subview> Container<'view, Subview> {
-    pub(crate) fn new<'cx, UiState>(subview: &'view mut Subview) -> Self
+    pub(crate) fn new<'cx>(subview: &'view mut Subview) -> Self
     where
-        UiState: 'cx,
-        Subview: View<'cx, UiState>,
+        Subview: View<'cx>,
     {
         let subview_size = subview.preferred_size();
         Self {
@@ -159,10 +159,9 @@ impl<'view, Subview> Container<'view, Subview> {
     }
 }
 
-impl<'view, 'cx, UiState, Subview> View<'cx, UiState> for Container<'view, Subview>
+impl<'view, 'cx, Subview> View<'cx> for Container<'view, Subview>
 where
-    UiState: 'cx,
-    Subview: View<'cx, UiState>,
+    Subview: View<'cx>,
 {
     fn preferred_size(&mut self) -> RectSize<f32> {
         let subview_size = self.override_size.unwrap_or(self.subview_size);
@@ -230,14 +229,14 @@ where
         if subview_bounds.y_max() > bounds.y_max() {
             subview_bounds.size.height = (bounds.y_max() - subview_bounds.y_min()).max(0.);
         }
-        self.subview.apply_bounds(dbg!(subview_bounds));
+        self.subview.apply_bounds(subview_bounds);
     }
 
-    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx, UiState>, canvas: &CanvasRef) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx>, canvas: &CanvasRef) {
         self.subview.prepare_for_drawing(ui_context, canvas);
     }
 
-    fn draw(&self, ui_context: &UiContext<'cx, UiState>, render_pass: &mut RenderPass) {
+    fn draw(&self, ui_context: &UiContext<'cx>, render_pass: &mut RenderPass) {
         self.subview.draw(ui_context, render_pass);
     }
 }

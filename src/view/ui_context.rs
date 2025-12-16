@@ -11,7 +11,13 @@ use pollster::FutureExt as _;
 use winit::window::Window;
 
 use crate::{
-    element::{CameraBindGroup, ImageRenderer, InstancedRectRenderer, RectRenderer, TextRenderer}, resources::{AppResources, LoadResourceError}, utils::*, view::View, wgpu_utils::{AsBindGroup, UniformBuffer}, Bounds, Canvas as _, CanvasFormat, CanvasRef, EventRouter, Font, ImageRef, LayoutPass, RectSize, Rgba, Texture2d, WindowCanvas
+    Bounds, Canvas as _, CanvasFormat, CanvasRef, Font, ImageRef, LayoutPass,
+    RectSize, Rgba, Texture2d, WindowCanvas,
+    element::{CameraBindGroup, ImageRenderer, InstancedRectRenderer, RectRenderer, TextRenderer},
+    resources::{AppResources, LoadResourceError},
+    utils::*,
+    view::View,
+    wgpu_utils::{AsBindGroup, UniformBuffer},
 };
 
 fn init_wgpu() -> (wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue) {
@@ -30,7 +36,7 @@ fn init_wgpu() -> (wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue) {
 
 /// `'cx` is for allowing `UiState` to contain captured lifetimes, which is necessary for
 /// `MouseEventRouter` as it needs to type erase all event listeners.
-pub struct UiContext<'cx, UiState> {
+pub struct UiContext<'cx> {
     device: wgpu::Device,
     queue: wgpu::Queue,
     camera_bind_group: CameraBindGroup,
@@ -39,25 +45,17 @@ pub struct UiContext<'cx, UiState> {
     instanced_rect_renderer: InstancedRectRenderer<'cx>,
     text_renderer: TextRenderer<'cx>,
     image_renderer: ImageRenderer<'cx>,
-    event_router: Arc<EventRouter<'cx, UiState>>,
 }
 
-impl<'cx, UiState> UiContext<'cx, UiState> {
+impl<'cx> UiContext<'cx> {
     pub fn create_for_window(
         resources: &'cx AppResources,
         window: Arc<Window>,
-        event_router: Arc<EventRouter<'cx, UiState>>,
     ) -> Result<(Self, WindowCanvas<'static>), UiContextCreationError> {
         let (instance, adapter, device, queue) = init_wgpu();
         let window_canvas =
             WindowCanvas::create_for_window(&instance, &adapter, &device, window.clone());
-        let ui_context = UiContext::create(
-            device,
-            queue,
-            resources,
-            window_canvas.format(),
-            event_router,
-        )?;
+        let ui_context = UiContext::create(device, queue, resources, window_canvas.format())?;
         Ok((ui_context, window_canvas))
     }
 
@@ -66,7 +64,6 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         queue: wgpu::Queue,
         resources: &'cx AppResources,
         canvas_format: CanvasFormat,
-        event_router: Arc<EventRouter<'cx, UiState>>,
     ) -> Result<Self, UiContextCreationError> {
         macro_rules! try_ {
             ($stage:expr, $x:expr $(,)?) => {
@@ -109,7 +106,6 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
             instanced_rect_renderer,
             text_renderer,
             image_renderer,
-            event_router,
         })
     }
 }
@@ -155,7 +151,7 @@ impl Display for UiContextCreationError {
     }
 }
 
-impl<'cx, UiState> UiContext<'cx, UiState> {
+impl<'cx> UiContext<'cx> {
     pub fn wgpu_device(&self) -> &wgpu::Device {
         &self.device
     }
@@ -180,19 +176,12 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         &self.image_renderer
     }
 
-    pub fn event_router(&self) -> Arc<EventRouter<'cx, UiState>> {
-        self.event_router.clone()
-    }
-
     pub fn prepare_view(
         &self,
         canvas: &CanvasRef,
         origin: Point2<f32>,
-        view: &mut dyn View<'cx, UiState>,
-    ) -> Bounds<f32>
-    where
-        UiState: 'cx,
-    {
+        view: &mut dyn View<'cx>,
+    ) -> Bounds<f32> {
         let requested_size = view.preferred_size();
         let canvas_size = canvas.logical_size;
         let availible_size = RectSize {
@@ -210,19 +199,14 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         &self,
         canvas: &CanvasRef,
         bounds: Bounds<f32>,
-        view: &mut dyn View<'cx, UiState>,
-    ) where
-        UiState: 'cx,
-    {
+        view: &mut dyn View<'cx>,
+    ) {
         view.preferred_size();
         view.apply_bounds(bounds);
         view.prepare_for_drawing(self, canvas);
     }
 
-    pub fn draw_view(&self, render_pass: &mut RenderPass, view: &dyn View<'cx, UiState>)
-    where
-        UiState: 'cx,
-    {
+    pub fn draw_view(&self, render_pass: &mut RenderPass, view: &dyn View<'cx>) {
         view.draw(self, render_pass);
     }
 
@@ -230,7 +214,7 @@ impl<'cx, UiState> UiContext<'cx, UiState> {
         Texture2d::create(&self.device, &self.queue, image)
     }
 
-    pub fn begin_layout_pass(&self) -> LayoutPass<'cx, UiState> {
+    pub fn begin_layout_pass(&self) -> LayoutPass<'cx> {
         LayoutPass::new()
     }
 

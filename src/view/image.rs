@@ -66,7 +66,7 @@ impl ImageView {
     }
 }
 
-impl<'cx, UiState: 'cx> View<'cx, UiState> for ImageView {
+impl<'cx> View<'cx> for ImageView {
     fn preferred_size(&mut self) -> RectSize<f32> {
         self.size
     }
@@ -75,7 +75,7 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for ImageView {
         self.apply_bounds_(bounds);
     }
 
-    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, _canvas: &CanvasRef) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx>, _canvas: &CanvasRef) {
         if (self.texture_updated || self.raw.is_none())
             && let Some(texture) = self.texture.as_ref()
         {
@@ -93,7 +93,7 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for ImageView {
         }
     }
 
-    fn draw(&self, ui_context: &UiContext<UiState>, render_pass: &mut RenderPass) {
+    fn draw(&self, ui_context: &UiContext<'cx>, render_pass: &mut RenderPass) {
         if let Some(raw) = self.raw.as_ref() {
             ui_context
                 .image_renderer()

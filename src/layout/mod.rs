@@ -10,18 +10,18 @@ mod stack;
 pub use container::*;
 pub use stack::*;
 
-pub struct LayoutPass<'cx, UiState: 'cx> {
+pub struct LayoutPass<'cx> {
     bumpalo: Bump,
-    _marker: PhantomData<&'cx UiState>,
+    _marker: PhantomData<&'cx ()>,
 }
 
-impl<UiState> Default for LayoutPass<'_, UiState> {
+impl Default for LayoutPass<'_> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'cx, UiState: 'cx> LayoutPass<'cx, UiState> {
+impl<'cx> LayoutPass<'cx> {
     pub(crate) fn new() -> Self {
         Self {
             bumpalo: Bump::new(),
@@ -34,7 +34,7 @@ impl<'cx, UiState: 'cx> LayoutPass<'cx, UiState> {
         subview: &'view mut Subview,
     ) -> &'pass mut Container<'view, Subview>
     where
-        Subview: View<'cx, UiState>,
+        Subview: View<'cx>,
     {
         self.bumpalo.alloc(Container::new(subview))
     }
@@ -42,8 +42,8 @@ impl<'cx, UiState: 'cx> LayoutPass<'cx, UiState> {
     pub fn stack<'pass, 'views>(
         &'pass self,
         axis: Axis,
-        build: impl FnOnce(&mut StackBuilder<'pass, 'views, 'cx, UiState>),
-    ) -> &'pass mut Stack<'pass, 'views, 'cx, UiState> {
+        build: impl FnOnce(&mut StackBuilder<'pass, 'views, 'cx>),
+    ) -> &'pass mut Stack<'pass, 'views, 'cx> {
         let mut builder = StackBuilder::new(&self.bumpalo, axis);
         build(&mut builder);
         self.bumpalo.alloc(builder.finish())
@@ -51,15 +51,15 @@ impl<'cx, UiState: 'cx> LayoutPass<'cx, UiState> {
 
     pub fn vstack<'pass, 'views>(
         &'pass self,
-        build: impl FnOnce(&mut StackBuilder<'pass, 'views, 'cx, UiState>),
-    ) -> &'pass mut Stack<'pass, 'views, 'cx, UiState> {
+        build: impl FnOnce(&mut StackBuilder<'pass, 'views, 'cx>),
+    ) -> &'pass mut Stack<'pass, 'views, 'cx> {
         self.stack(Axis::Vertical, build)
     }
 
     pub fn hstack<'pass, 'views>(
         &'pass self,
-        build: impl FnOnce(&mut StackBuilder<'pass, 'views, 'cx, UiState>),
-    ) -> &'pass mut Stack<'pass, 'views, 'cx, UiState> {
+        build: impl FnOnce(&mut StackBuilder<'pass, 'views, 'cx>),
+    ) -> &'pass mut Stack<'pass, 'views, 'cx> {
         self.stack(Axis::Horizontal, build)
     }
 }

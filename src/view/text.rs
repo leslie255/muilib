@@ -25,7 +25,7 @@ pub struct TextView<'cx> {
 }
 
 impl<'cx> TextView<'cx> {
-    pub fn new<UiState>(ui_context: &UiContext<'cx, UiState>) -> Self {
+    pub fn new(ui_context: &UiContext<'cx>) -> Self {
         Self {
             n_lines: 1,
             n_columns: 0,
@@ -129,7 +129,7 @@ impl<'cx> TextView<'cx> {
     }
 }
 
-impl<'cx, UiState: 'cx> View<'cx, UiState> for TextView<'cx> {
+impl<'cx> View<'cx> for TextView<'cx> {
     fn preferred_size(&mut self) -> RectSize<f32> {
         self.size()
     }
@@ -138,7 +138,7 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for TextView<'cx> {
         self.apply_bounds_(bounds);
     }
 
-    fn prepare_for_drawing(&mut self, ui_context: &UiContext<UiState>, _canvas: &CanvasRef) {
+    fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx>, _canvas: &CanvasRef) {
         let raw = self.raw.get_or_init(|| {
             self.text_needs_update = false; // `create_text` updates the text
             ui_context
@@ -171,7 +171,7 @@ impl<'cx, UiState: 'cx> View<'cx, UiState> for TextView<'cx> {
         }
     }
 
-    fn draw(&self, ui_context: &UiContext<UiState>, render_pass: &mut RenderPass) {
+    fn draw(&self, ui_context: &UiContext<'cx>, render_pass: &mut RenderPass) {
         ui_context
             .text_renderer()
             .draw_text(render_pass.wgpu_render_pass(), self.raw.get().unwrap());
