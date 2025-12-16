@@ -55,7 +55,7 @@ impl Theme {
         button_styles: [
             // Normal.
             ButtonStyle {
-                line_width: LineWidth::Uniform(2.),
+                line_width: LineWidth::Uniform(1.),
                 font_size: 12.,
                 idle_style: ButtonStateStyle {
                     text_color: Srgb::from_hex(0xFFFFFF),
@@ -75,7 +75,7 @@ impl Theme {
             },
             // Primary.
             ButtonStyle {
-                line_width: LineWidth::Uniform(2.),
+                line_width: LineWidth::Uniform(1.),
                 font_size: 12.,
                 idle_style: ButtonStateStyle {
                     text_color: Srgb::from_hex(0xFFFFFF),
@@ -95,7 +95,7 @@ impl Theme {
             },
             // Toxic.
             ButtonStyle {
-                line_width: LineWidth::Uniform(2.),
+                line_width: LineWidth::Uniform(1.),
                 font_size: 12.,
                 idle_style: ButtonStateStyle {
                     text_color: Srgb::from_hex(0xFFFFFF),

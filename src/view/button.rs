@@ -178,7 +178,7 @@ impl<'cx, UiState> ButtonView<'cx, UiState> {
     };
 
     const DEFAULT_STYLE: ButtonStyle = ButtonStyle {
-        line_width: LineWidth::Uniform(2.),
+        line_width: LineWidth::Uniform(1.),
         font_size: 12.,
         idle_style: ButtonStateStyle {
             text_color: Srgb::from_hex(0xFFFFFF),
@@ -263,7 +263,7 @@ impl<'cx, UiState> ButtonView<'cx, UiState> {
             rect_bounds.x_min() + 0.5 * (rect_bounds.width() - text_size.width).max(0.),
             rect_bounds.y_min() + 0.5 * (rect_bounds.height() - text_size.height).max(0.),
         );
-        self.text_view.apply_bounds_(Bounds {
+        self.text_view.apply_bounds(Bounds {
             origin,
             size: text_size.min(rect_bounds.size),
         });
@@ -276,7 +276,7 @@ impl<'cx, UiState: 'cx> View<'cx> for ButtonView<'cx, UiState> {
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        self.rect_view.apply_bounds_(bounds);
+        self.rect_view.apply_bounds(bounds);
         self.relayout_text();
         self.listener_handle.update_bounds(self.rect_view.bounds());
     }
@@ -339,7 +339,8 @@ impl<UiState> MouseEventListener<UiState> for Arc<ButtonDispatch<UiState>> {
         };
         self.set_state(new_state);
         self.state_updated.store(true, Release);
-        if let Some(callback) = self.callback.lock().unwrap().as_ref() {
+        let callback = self.callback.lock().unwrap();
+        if let Some(callback) = callback.as_ref() {
             let button_event = ButtonEvent {
                 kind: event.kind,
                 position: event.cursor_position,

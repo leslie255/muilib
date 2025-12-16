@@ -2,13 +2,15 @@ use std::marker::PhantomData;
 
 use bumpalo::Bump;
 
-use crate::{Axis, View};
+use crate::{Axis, RectSize, View};
 
 mod container;
 mod stack;
+mod spacer;
 
 pub use container::*;
 pub use stack::*;
+pub use spacer::*;
 
 pub struct LayoutPass<'cx> {
     bumpalo: Bump,
@@ -37,6 +39,10 @@ impl<'cx> LayoutPass<'cx> {
         Subview: View<'cx>,
     {
         self.bumpalo.alloc(Container::new(subview))
+    }
+
+    pub fn spacer(&self, size: RectSize<f32>) -> &'_ mut Spacer {
+        self.bumpalo.alloc(Spacer::new(size))
     }
 
     pub fn stack<'pass, 'views>(

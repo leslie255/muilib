@@ -59,11 +59,6 @@ impl ImageView {
             self.set_size(texture.size_f());
         }
     }
-
-    pub fn apply_bounds_(&mut self, bounds: Bounds<f32>) {
-        self.bounds = bounds;
-        self.bounds_updated = true
-    }
 }
 
 impl<'cx> View<'cx> for ImageView {
@@ -72,7 +67,8 @@ impl<'cx> View<'cx> for ImageView {
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        self.apply_bounds_(bounds);
+        self.bounds = bounds;
+        self.bounds_updated = true
     }
 
     fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx>, _canvas: &CanvasRef) {

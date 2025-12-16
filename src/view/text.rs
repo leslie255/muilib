@@ -119,14 +119,6 @@ impl<'cx> TextView<'cx> {
             self.n_lines as f32 * self.font_size(),
         )
     }
-
-    pub fn apply_bounds_(&mut self, bounds: Bounds<f32>) {
-        let size = self.size();
-        self.squeeze_horizontal = (bounds.width() / size.width).min(1.);
-        self.squeeze_vertical = (bounds.height() / size.height).min(1.);
-        self.needs_update = true;
-        self.origin = bounds.origin;
-    }
 }
 
 impl<'cx> View<'cx> for TextView<'cx> {
@@ -135,7 +127,11 @@ impl<'cx> View<'cx> for TextView<'cx> {
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        self.apply_bounds_(bounds);
+        let size = self.size();
+        self.squeeze_horizontal = (bounds.width() / size.width).min(1.);
+        self.squeeze_vertical = (bounds.height() / size.height).min(1.);
+        self.needs_update = true;
+        self.origin = bounds.origin;
     }
 
     fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx>, _canvas: &CanvasRef) {

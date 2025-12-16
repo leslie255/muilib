@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use muilib::{Canvas as _, RectSize};
+use muilib::{Canvas as _, RectSize, Srgb};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -9,13 +9,16 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::theme::Theme;
+use crate::theme::{ButtonKind, Theme};
 
 pub struct App<'cx> {
     window: Arc<Window>,
     window_canvas: muilib::WindowCanvas<'static>,
     ui_context: muilib::UiContext<'cx>,
-    button: muilib::ButtonView<'cx, Self>,
+    button_increase: muilib::ButtonView<'cx, Self>,
+    button_decrease: muilib::ButtonView<'cx, Self>,
+    button_reset: muilib::ButtonView<'cx, Self>,
+    toolbar_rect: muilib::RectView,
     rects: Vec<muilib::RectView>,
     event_router: Arc<muilib::EventRouter<'cx, Self>>,
 }
@@ -42,20 +45,32 @@ impl<'cx> App<'cx> {
 
         let theme = Theme::DEFAULT;
 
-        let colors = [0x0000C0, 0x00C000, 0xC00000, 0x008080, 0x808000, 0x800080];
+        let colors = [0xC04040, 0x40C040, 0x4040C0, 0x008080, 0x808000, 0x800080];
 
         let mut self_ = Self {
             window,
             window_canvas,
-            button: muilib::ButtonView::new(&ui_context, &event_router)
-                .with_callback(|_, event| log::debug!("button event: {event:?}")),
+            button_increase: muilib::ButtonView::new(&ui_context, &event_router)
+                .with_style(theme.button_style(ButtonKind::Mundane))
+                .with_title("+")
+                .with_callback(Self::button_increase),
+            button_decrease: muilib::ButtonView::new(&ui_context, &event_router)
+                .with_style(theme.button_style(ButtonKind::Mundane))
+                .with_title("-")
+                .with_callback(Self::button_decrease),
+            button_reset: muilib::ButtonView::new(&ui_context, &event_router)
+                .with_style(theme.button_style(ButtonKind::Toxic))
+                .with_title("Reset")
+                .with_callback(Self::button_reset),
+            toolbar_rect: muilib::RectView::new(RectSize::new(f32::INFINITY, 56.))
+                .with_fill_color(theme.secondary_background()),
             rects: colors
                 .into_iter()
-                .map(|_| {
+                .map(|color| {
                     muilib::RectView::new(RectSize::new(100., 100.))
-                        .with_fill_color(theme.secondary_background())
-                        .with_line_color(theme.tertiary_foreground())
-                        .with_line_width(2.)
+                        .with_fill_color(Srgb::from_hex(color))
+                        .with_line_color(Srgb::from_hex(0xFFFFFF))
+                        .with_line_width(4.)
                 })
                 .collect(),
             ui_context,
@@ -65,49 +80,96 @@ impl<'cx> App<'cx> {
         self_
     }
 
+    fn button_increase(&mut self, event: muilib::ButtonEvent) {
+        if event.is_button_trigger() {
+            for (i, rect) in self.rects.iter_mut().enumerate() {
+                if i.is_multiple_of(2) {
+                    continue;
+                }
+                let size = rect.size_mut();
+                *size = size.scaled(1.1, 1.1);
+            }
+        }
+    }
+
+    fn button_decrease(&mut self, event: muilib::ButtonEvent) {
+        if event.is_button_trigger() {
+            for (i, rect) in self.rects.iter_mut().enumerate() {
+                if i.is_multiple_of(2) {
+                    continue;
+                }
+                let size = rect.size_mut();
+                *size = size.scaled(1. / 1.1, 1. / 1.1);
+            }
+        }
+    }
+
+    fn button_reset(&mut self, event: muilib::ButtonEvent) {
+        if event.is_button_trigger() {
+            for (i, rect) in self.rects.iter_mut().enumerate() {
+                if i.is_multiple_of(2) {
+                    continue;
+                }
+                rect.set_size(RectSize::new(100., 100.));
+            }
+        }
+    }
+
     fn frame(&mut self, canvas: muilib::CanvasRef) {
         let layout = self.ui_context.begin_layout_pass();
-        let [row0, row1, row2] = self.rects.get_disjoint_mut([0..3, 3..4, 4..6]).unwrap();
+
+        let toolbar_hstack = layout.hstack(|hstack| {
+            hstack.set_fixed_padding(4.);
+            hstack.subview(&mut self.button_increase);
+            hstack.subview(&mut self.button_decrease);
+            hstack.subview(&mut self.button_reset);
+            hstack.subview(layout.spacer(RectSize::new(f32::INFINITY, 0.)));
+        });
+
+        let main_body = layout.vstack(|vstack| {
+            vstack.set_fixed_padding(4.);
+            vstack.set_fixed_padding(4.);
+            vstack.set_alignment_horizontal(muilib::StackAlignmentHorizontal::Center);
+            let rows = self.rects.get_disjoint_mut([0..1, 1..3, 3..6]).unwrap();
+            for row in rows {
+                vstack.subview(layout.hstack(|hstack| {
+                    hstack.set_fixed_padding(4.);
+                    for rect in row {
+                        hstack.subview(rect);
+                    }
+                }));
+            }
+        });
+
         let root_view = layout.vstack(|vstack| {
             vstack.set_fixed_padding(4.);
             vstack.set_alignment_vertical(muilib::StackAlignmentVertical::Top);
             vstack.set_alignment_horizontal(muilib::StackAlignmentHorizontal::Left);
-            vstack.subview(layout.hstack(|hstack| {
-                hstack.set_fixed_padding(4.);
-                for rect in &mut *row0 {
-                    rect.set_size(RectSize::new(64., 24.));
-                }
-                hstack.subview(&mut self.button);
-                if let Some(rect) = row0.last_mut() {
-                    rect.size_mut().width = f32::INFINITY;
-                }
-                for rect in row0 {
-                    hstack.subview(rect);
-                }
-            }));
-            vstack.subview(layout.hstack(|hstack| {
-                hstack.set_fixed_padding(4.);
-                for rect in row1 {
-                    rect.set_size(RectSize::new(f32::INFINITY, f32::INFINITY));
-                    hstack.subview(rect);
-                }
-            }));
-            vstack.subview(layout.hstack(|hstack| {
-                hstack.set_fixed_padding(4.);
-                for rect in &mut *row2 {
-                    rect.set_size(RectSize::new(64., 24.));
-                }
-                if let Some(rect) = row2.first_mut() {
-                    rect.size_mut().width = f32::INFINITY;
-                }
-                for rect in row2 {
-                    hstack.subview(rect);
-                }
-            }));
+            // Toolbar.
+            vstack.subview(
+                layout
+                    .container(
+                        layout
+                            .container(toolbar_hstack)
+                            .set_padding(muilib::ContainerPadding::Fixed(12.)),
+                    )
+                    .set_background_rect_view(&mut self.toolbar_rect),
+            );
+            // Main body.
+            vstack.subview(
+                layout
+                    .container(
+                        layout
+                            .container(main_body)
+                            .set_padding(muilib::ContainerPadding::Spread),
+                    )
+                    .set_padding(muilib::ContainerPadding::Fixed(12.))
+                    .set_padding_top(muilib::ContainerPadding::Fixed(4.)),
+            );
         });
 
         self.ui_context
-            .prepare_view_bounded(&canvas, canvas.bounds().with_inset(16.), root_view);
+            .prepare_view_bounded(&canvas, canvas.bounds(), root_view);
 
         let mut render_pass = self
             .ui_context
@@ -135,11 +197,7 @@ impl<'cx> ApplicationHandler for App<'cx> {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        let should_redraw = self.event_router.clone().window_event(&event, self);
-        if should_redraw {
-            self.window.request_redraw();
-        }
-        match event {
+        match &event {
             WindowEvent::Resized(_) => self.window_resized(),
             WindowEvent::RedrawRequested => {
                 let canvas_view = self.window_canvas.create_ref().unwrap();
@@ -159,6 +217,10 @@ impl<'cx> ApplicationHandler for App<'cx> {
                 }
             }
             _ => (),
+        }
+        let should_redraw = self.event_router.clone().window_event(&event, self);
+        if should_redraw {
+            self.window.request_redraw();
         }
     }
 }

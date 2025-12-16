@@ -162,10 +162,10 @@ impl<'cx, UiState> EventRouter<'cx, UiState> {
                 inner.button_states[index] = state.is_pressed();
                 self.scan_events(ui_state, &mut inner)
             }
-            // WindowEvent::RedrawRequested => {
-            //     let mut inner = self.inner.lock().unwrap();
-            //     self.scan_events(ui_state, &mut inner)
-            // }
+            WindowEvent::RedrawRequested => {
+                let mut inner = self.inner.lock().unwrap();
+                self.scan_events(ui_state, &mut inner)
+            }
             _ => false,
         }
     }

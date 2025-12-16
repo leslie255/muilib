@@ -89,11 +89,6 @@ impl RectView {
     pub fn bounds(&self) -> Bounds<f32> {
         self.bounds
     }
-
-    pub fn apply_bounds_(&mut self, bounds: Bounds<f32>) {
-        self.bounds = bounds;
-        self.needs_update = true;
-    }
 }
 
 impl<'cx> View<'cx> for RectView {
@@ -102,7 +97,8 @@ impl<'cx> View<'cx> for RectView {
     }
 
     fn apply_bounds(&mut self, bounds: Bounds<f32>) {
-        self.apply_bounds_(bounds);
+        self.bounds = bounds;
+        self.needs_update = true;
     }
 
     fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx>, _canvas: &CanvasRef) {

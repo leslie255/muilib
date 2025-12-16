@@ -1,6 +1,6 @@
 use cgmath::*;
 
-use crate::{Bounds, CanvasRef, RectSize, RenderPass, UiContext, View};
+use crate::{Bounds, CanvasRef, RectSize, RectView, RenderPass, UiContext, View};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ContainerPadding {
@@ -51,6 +51,7 @@ pub struct Container<'view, Subview> {
     spread_ratio_vertical: f32,
     subview: &'view mut Subview,
     subview_size: RectSize<f32>,
+    background_rect_view: Option<&'view mut RectView>,
 }
 
 impl<'view, Subview> Container<'view, Subview> {
@@ -67,6 +68,7 @@ impl<'view, Subview> Container<'view, Subview> {
             spread_ratio_vertical: 0.5,
             subview_size: subview.preferred_size(),
             subview,
+            background_rect_view: None,
         }
     }
 
@@ -106,6 +108,14 @@ impl<'view, Subview> Container<'view, Subview> {
 
     pub fn set_spread_ratio_vertical(&mut self, spread_ratio_vertical: f32) -> &mut Self {
         self.spread_ratio_vertical = spread_ratio_vertical;
+        self
+    }
+
+    pub fn set_background_rect_view(
+        &mut self,
+        background_rect_view: impl Into<Option<&'view mut RectView>>,
+    ) -> &mut Self {
+        self.background_rect_view = background_rect_view.into();
         self
     }
 
@@ -213,14 +223,23 @@ where
         if subview_bounds.y_max() > bounds.y_max() {
             subview_bounds.size.height = (bounds.y_max() - subview_bounds.y_min()).max(0.);
         }
+        if let Some(background_rect_view) = &mut self.background_rect_view {
+            background_rect_view.apply_bounds(subview_bounds);
+        }
         self.subview.apply_bounds(subview_bounds);
     }
 
     fn prepare_for_drawing(&mut self, ui_context: &UiContext<'cx>, canvas: &CanvasRef) {
+        if let Some(background_rect_view) = &mut self.background_rect_view {
+            background_rect_view.prepare_for_drawing(ui_context, canvas);
+        }
         self.subview.prepare_for_drawing(ui_context, canvas);
     }
 
     fn draw(&self, ui_context: &UiContext<'cx>, render_pass: &mut RenderPass) {
+        if let Some(background_rect_view) = &self.background_rect_view {
+            background_rect_view.draw(ui_context, render_pass);
+        }
         self.subview.draw(ui_context, render_pass);
     }
 }
